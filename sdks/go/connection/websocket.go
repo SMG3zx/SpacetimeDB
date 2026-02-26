@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/clockworklabs/spacetimedb/sdks/go/internal/protocol"
 	"github.com/gorilla/websocket"
@@ -85,7 +86,7 @@ func dialWebsocket(ctx context.Context, endpoint *url.URL, headers map[string]st
 		return nil, fmt.Errorf("unexpected websocket subprotocol: got %q want %q", conn.Subprotocol(), protocol.WSSubprotocolV2)
 	}
 
-	if err := conn.WriteControl(websocket.PingMessage, bytes.Repeat([]byte{0}, 1), websocket.DefaultDialer.HandshakeTimeout); err != nil {
+	if err := conn.WriteControl(websocket.PingMessage, bytes.Repeat([]byte{0}, 1), time.Now().Add(websocket.DefaultDialer.HandshakeTimeout)); err != nil {
 		// Ping failure right after connect usually means the socket is already unhealthy.
 		_ = conn.Close()
 		return nil, fmt.Errorf("websocket post-connect ping failed: %w", err)
