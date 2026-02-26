@@ -17,6 +17,7 @@ type Builder struct {
 	token             string
 	compression       protocol.Compression
 	messageDecoder    protocol.MessageDecoder
+	messageEncoder    protocol.MessageEncoder
 	lightMode         bool
 	confirmedReads    *bool
 	useWebsocketToken bool
@@ -55,6 +56,11 @@ func (b *Builder) WithCompression(compression protocol.Compression) *Builder {
 
 func (b *Builder) WithMessageDecoder(decoder protocol.MessageDecoder) *Builder {
 	b.messageDecoder = decoder
+	return b
+}
+
+func (b *Builder) WithMessageEncoder(encoder protocol.MessageEncoder) *Builder {
+	b.messageEncoder = encoder
 	return b
 }
 
@@ -142,7 +148,7 @@ func (b *Builder) Build(ctx context.Context) (*Connection, error) {
 		return nil, err
 	}
 
-	c := newConnection(conn, connectionID, wsURL.String(), b.messageDecoder, b.onMessage, b.onDisconnect)
+	c := newConnection(conn, connectionID, wsURL.String(), b.messageDecoder, b.messageEncoder, b.onMessage, b.onDisconnect)
 	if b.onConnect != nil {
 		b.onConnect(c)
 	}

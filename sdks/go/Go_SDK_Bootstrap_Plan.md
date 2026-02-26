@@ -37,8 +37,8 @@ This matches how C# works today: runtime primitives live in SDK code, and `space
 2. [x] Implement WS connection lifecycle with protocol `v2.bsatn.spacetimedb` and auth/token flow.
 3. [x] Implement request-id/query-id allocators and message routing.
 4. [x] Implement client cache with atomic transaction application semantics.
-5. [ ] Implement reducer/procedure call paths and callback dispatch.
-6. [ ] Implement one-off query and subscription management.
+5. [x] Implement reducer/procedure call paths and callback dispatch.
+6. [x] Implement one-off query and subscription management.
 
 #### Phase 2: Add Go backend to codegen crate
 1. Add new backend file: `crates/codegen/src/go.rs`.

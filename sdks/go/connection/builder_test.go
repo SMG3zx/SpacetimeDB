@@ -87,3 +87,14 @@ func TestBuildSubscribeURL(t *testing.T) {
 		t.Fatalf("unexpected confirmed: %q", got)
 	}
 }
+
+func TestWithMessageEncoderSetsEncoder(t *testing.T) {
+	b := NewBuilder()
+	encoder := func(message protocol.ClientMessage) ([]byte, error) {
+		return []byte(message.Kind), nil
+	}
+	b.WithMessageEncoder(encoder)
+	if b.messageEncoder == nil {
+		t.Fatalf("expected message encoder to be set")
+	}
+}
