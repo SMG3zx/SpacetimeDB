@@ -3,13 +3,14 @@ package connection
 import (
 	"fmt"
 
+	"github.com/clockworklabs/spacetimedb/sdks/go/events"
 	"github.com/clockworklabs/spacetimedb/sdks/go/internal/protocol"
 )
 
-type ReducerResultCallback func(protocol.RoutedMessage, error)
-type ProcedureResultCallback func(protocol.RoutedMessage, error)
+type ReducerResultCallback = events.ReducerResultCallback
+type ProcedureResultCallback = events.ProcedureResultCallback
 
-type callResultCallback func(protocol.RoutedMessage, error)
+type callResultCallback = events.ResultCallback
 
 func (c *Connection) CallReducer(reducer string, args []byte, callback ReducerResultCallback) (uint32, error) {
 	if reducer == "" {

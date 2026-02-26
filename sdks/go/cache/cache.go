@@ -4,7 +4,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/clockworklabs/spacetimedb/sdks/go/internal/protocol"
+	sdktypes "github.com/clockworklabs/spacetimedb/sdks/go/types"
 )
 
 // Store holds client-side table state and applies transactions atomically.
@@ -54,7 +54,7 @@ func NewStore() *Store {
 }
 
 // ApplyTransaction applies a transaction as a single atomic state update.
-func (s *Store) ApplyTransaction(tx protocol.Transaction) {
+func (s *Store) ApplyTransaction(tx sdktypes.Transaction) {
 	s.writeMu.Lock()
 	defer s.writeMu.Unlock()
 

@@ -3,13 +3,15 @@ package connection
 import (
 	"fmt"
 
+	"github.com/clockworklabs/spacetimedb/sdks/go/events"
 	"github.com/clockworklabs/spacetimedb/sdks/go/internal/protocol"
+	sdksubscription "github.com/clockworklabs/spacetimedb/sdks/go/subscription"
 )
 
-type OneOffQueryResultCallback func(protocol.RoutedMessage, error)
-type SubscriptionCallback func(protocol.RoutedMessage, error)
+type OneOffQueryResultCallback = events.OneOffQueryResultCallback
+type SubscriptionCallback = sdksubscription.Callback
 
-type subscriptionCallback func(protocol.RoutedMessage, error)
+type subscriptionCallback = sdksubscription.Callback
 
 func (c *Connection) OneOffQuery(query string, callback OneOffQueryResultCallback) (uint32, error) {
 	if query == "" {
@@ -45,16 +47,16 @@ func (c *Connection) Subscribe(queryStrings []string, callback SubscriptionCallb
 		})
 		c.subCallbacks.Store(queryID, wrapped)
 		c.OnQuery(queryID, func(message protocol.RoutedMessage) {
-			switch message.Kind {
-			case protocol.MessageKindSubscribeApplied, protocol.MessageKindTransactionUpdate:
-				callback(message, nil)
-			case protocol.MessageKindSubscriptionError, protocol.MessageKindUnsubscribeApplied:
+			if !sdksubscription.IsExpectedMessageKind(message.Kind) {
+				callback(message, fmt.Errorf("unexpected subscription message kind: %q", message.Kind))
+				return
+			}
+
+			if sdksubscription.IsTerminalMessageKind(message.Kind) {
 				c.subCallbacks.Delete(queryID)
 				c.ClearQueryRoute(queryID)
-				callback(message, nil)
-			default:
-				callback(message, fmt.Errorf("unexpected subscription message kind: %q", message.Kind))
 			}
+			callback(message, nil)
 		})
 	}
 
