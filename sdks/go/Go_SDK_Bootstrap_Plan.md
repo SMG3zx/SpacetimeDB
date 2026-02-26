@@ -30,15 +30,15 @@ This matches how C# works today: runtime primitives live in SDK code, and `space
 ### Implementation Plan
 
 #### Phase 1: Runtime skeleton in `sdks/go` (first executable vertical slice)
-1. Create `sdks/go` module with package layout:
+1. [ ] Create `sdks/go` module with package layout:
 - `internal/protocol` (wire message structs + encode/decode)
 - `internal/bsatn` (serialization helpers)
 - `connection`, `subscription`, `cache`, `events`, `types`
-2. Implement WS connection lifecycle with protocol `v2.bsatn.spacetimedb` and auth/token flow.
-3. Implement request-id/query-id allocators and message routing.
-4. Implement client cache with atomic transaction application semantics.
-5. Implement reducer/procedure call paths and callback dispatch.
-6. Implement one-off query and subscription management.
+2. [x] Implement WS connection lifecycle with protocol `v2.bsatn.spacetimedb` and auth/token flow.
+3. [x] Implement request-id/query-id allocators and message routing.
+4. [x] Implement client cache with atomic transaction application semantics.
+5. [ ] Implement reducer/procedure call paths and callback dispatch.
+6. [ ] Implement one-off query and subscription management.
 
 #### Phase 2: Add Go backend to codegen crate
 1. Add new backend file: `crates/codegen/src/go.rs`.
@@ -98,4 +98,3 @@ This matches how C# works today: runtime primitives live in SDK code, and `space
 3. Initial Go SDK scope is backend/server Go usage (not browser/WASM-specific runtime constraints).
 4. `spacetime generate --lang go` is required in first public milestone.
 5. `init` templates for Go are out of first milestone unless needed to unblock onboarding.
-
