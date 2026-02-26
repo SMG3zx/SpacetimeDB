@@ -20,6 +20,7 @@ type Connection struct {
 	endpoint     string
 
 	messageDecoder protocol.MessageDecoder
+	messageEncoder protocol.MessageEncoder
 	onMessage      func([]byte)
 	onDisconnect   func(error)
 
@@ -29,6 +30,8 @@ type Connection struct {
 	requestRoutes sync.Map // map[uint32]protocol.RouteHandler
 	queryRoutes   sync.Map // map[uint32]protocol.RouteHandler
 	kindRoutes    sync.Map // map[protocol.MessageKind]protocol.RouteHandler
+	callCallbacks sync.Map // map[uint32]callResultCallback
+	subCallbacks  sync.Map // map[uint32]subscriptionCallback
 
 	closed         atomic.Bool
 	disconnectOnce sync.Once
@@ -39,14 +42,20 @@ func newConnection(
 	ws *websocket.Conn,
 	connectionID, endpoint string,
 	messageDecoder protocol.MessageDecoder,
+	messageEncoder protocol.MessageEncoder,
 	onMessage func([]byte),
 	onDisconnect func(error),
 ) *Connection {
+	if messageEncoder == nil {
+		messageEncoder = protocol.JSONMessageEncoder
+	}
+
 	return &Connection{
 		ws:             ws,
 		connectionID:   connectionID,
 		endpoint:       endpoint,
 		messageDecoder: messageDecoder,
+		messageEncoder: messageEncoder,
 		onMessage:      onMessage,
 		onDisconnect:   onDisconnect,
 	}
@@ -167,6 +176,7 @@ func (c *Connection) startReadLoop() {
 
 func (c *Connection) notifyDisconnect(err error) {
 	c.disconnectOnce.Do(func() {
+		c.failPendingCalls(err)
 		if c.onDisconnect != nil {
 			c.onDisconnect(err)
 		}
@@ -220,4 +230,36 @@ func decompressServerMessage(payload []byte) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("unknown compression scheme: %d", scheme)
 	}
+}
+
+func (c *Connection) failPendingCalls(err error) {
+	c.callCallbacks.Range(func(key, value any) bool {
+		requestID, ok := key.(uint32)
+		if !ok {
+			return true
+		}
+		callback, ok := value.(callResultCallback)
+		if !ok {
+			return true
+		}
+		c.callCallbacks.Delete(requestID)
+		c.ClearRequestRoute(requestID)
+		callback(protocol.RoutedMessage{}, err)
+		return true
+	})
+
+	c.subCallbacks.Range(func(key, value any) bool {
+		queryID, ok := key.(uint32)
+		if !ok {
+			return true
+		}
+		callback, ok := value.(subscriptionCallback)
+		if !ok {
+			return true
+		}
+		c.subCallbacks.Delete(queryID)
+		c.ClearQueryRoute(queryID)
+		callback(protocol.RoutedMessage{}, err)
+		return true
+	})
 }

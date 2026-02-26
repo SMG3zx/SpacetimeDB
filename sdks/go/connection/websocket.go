@@ -21,9 +21,10 @@ type websocketTokenResponse struct {
 
 func exchangeWebsocketToken(ctx context.Context, host *url.URL, authToken string) (string, error) {
 	tokenURL := *host
-	if tokenURL.Scheme == "wss" {
+	switch tokenURL.Scheme {
+	case "wss":
 		tokenURL.Scheme = "https"
-	} else if tokenURL.Scheme == "ws" {
+	case "ws":
 		tokenURL.Scheme = "http"
 	}
 	tokenURL.Path = "/v1/identity/websocket-token"

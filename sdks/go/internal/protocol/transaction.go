@@ -14,4 +14,3 @@ type TableMutation struct {
 type Transaction struct {
 	Tables []TableMutation
 }
-
