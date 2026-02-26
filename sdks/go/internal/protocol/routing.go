@@ -5,12 +5,12 @@ import "fmt"
 type MessageKind string
 
 const (
-	MessageKindInitialConnection MessageKind = "initial_connection"
-	MessageKindSubscribeApplied  MessageKind = "subscribe_applied"
+	MessageKindInitialConnection  MessageKind = "initial_connection"
+	MessageKindSubscribeApplied   MessageKind = "subscribe_applied"
 	MessageKindUnsubscribeApplied MessageKind = "unsubscribe_applied"
-	MessageKindSubscriptionError MessageKind = "subscription_error"
-	MessageKindTransactionUpdate MessageKind = "transaction_update"
-	MessageKindOneOffQueryResult MessageKind = "one_off_query_result"
+	MessageKindSubscriptionError  MessageKind = "subscription_error"
+	MessageKindTransactionUpdate  MessageKind = "transaction_update"
+	MessageKindOneOffQueryResult  MessageKind = "one_off_query_result"
 	MessageKindReducerResult      MessageKind = "reducer_result"
 	MessageKindProcedureResult    MessageKind = "procedure_result"
 	MessageKindUnknown            MessageKind = "unknown"
