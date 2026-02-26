@@ -1,16 +1,7 @@
 package protocol
 
-type Row struct {
-	Key  string
-	Data []byte
-}
+import sdktypes "github.com/clockworklabs/spacetimedb/sdks/go/types"
 
-type TableMutation struct {
-	Table   string
-	Inserts []Row
-	Deletes []string
-}
-
-type Transaction struct {
-	Tables []TableMutation
-}
+type Row = sdktypes.Row
+type TableMutation = sdktypes.TableMutation
+type Transaction = sdktypes.Transaction

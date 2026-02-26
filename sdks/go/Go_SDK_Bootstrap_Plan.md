@@ -30,7 +30,7 @@ This matches how C# works today: runtime primitives live in SDK code, and `space
 ### Implementation Plan
 
 #### Phase 1: Runtime skeleton in `sdks/go` (first executable vertical slice)
-1. [ ] Create `sdks/go` module with package layout:
+1. [x] Create `sdks/go` module with package layout:
 - `internal/protocol` (wire message structs + encode/decode)
 - `internal/bsatn` (serialization helpers)
 - `connection`, `subscription`, `cache`, `events`, `types`

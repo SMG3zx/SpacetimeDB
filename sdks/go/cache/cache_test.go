@@ -4,15 +4,15 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/clockworklabs/spacetimedb/sdks/go/internal/protocol"
+	sdktypes "github.com/clockworklabs/spacetimedb/sdks/go/types"
 )
 
 func TestApplyTransactionAtomicallyPublishesState(t *testing.T) {
 	store := NewStore()
 
-	store.ApplyTransaction(protocol.Transaction{Tables: []protocol.TableMutation{{
+	store.ApplyTransaction(sdktypes.Transaction{Tables: []sdktypes.TableMutation{{
 		Table: "users",
-		Inserts: []protocol.Row{{
+		Inserts: []sdktypes.Row{{
 			Key:  "u1",
 			Data: []byte("alice"),
 		}},
@@ -26,18 +26,18 @@ func TestApplyTransactionAtomicallyPublishesState(t *testing.T) {
 		t.Fatalf("unexpected value: %q", string(value))
 	}
 
-	store.ApplyTransaction(protocol.Transaction{Tables: []protocol.TableMutation{
+	store.ApplyTransaction(sdktypes.Transaction{Tables: []sdktypes.TableMutation{
 		{
 			Table:   "users",
 			Deletes: []string{"u1"},
-			Inserts: []protocol.Row{{
+			Inserts: []sdktypes.Row{{
 				Key:  "u2",
 				Data: []byte("bob"),
 			}},
 		},
 		{
 			Table: "teams",
-			Inserts: []protocol.Row{{
+			Inserts: []sdktypes.Row{{
 				Key:  "t1",
 				Data: []byte("infra"),
 			}},
@@ -65,9 +65,9 @@ func TestApplyTransactionAtomicallyPublishesState(t *testing.T) {
 
 func TestReturnedDataIsDefensivelyCopied(t *testing.T) {
 	store := NewStore()
-	store.ApplyTransaction(protocol.Transaction{Tables: []protocol.TableMutation{{
+	store.ApplyTransaction(sdktypes.Transaction{Tables: []sdktypes.TableMutation{{
 		Table: "users",
-		Inserts: []protocol.Row{{
+		Inserts: []sdktypes.Row{{
 			Key:  "u1",
 			Data: []byte("alice"),
 		}},
