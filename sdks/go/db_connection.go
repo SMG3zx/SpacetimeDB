@@ -183,6 +183,11 @@ func (b *DbConnectionBuilder) WithURI(uri string) *DbConnectionBuilder {
 	return b
 }
 
+// WithURL is an alias for WithURI using idiomatic Go acronym casing.
+func (b *DbConnectionBuilder) WithURL(uri string) *DbConnectionBuilder {
+	return b.WithURI(uri)
+}
+
 func (b *DbConnectionBuilder) WithDatabaseName(name string) *DbConnectionBuilder {
 	b.inner.WithDatabaseName(name)
 	return b
@@ -206,6 +211,11 @@ func (b *DbConnectionBuilder) WithConfirmedReads(confirmed bool) *DbConnectionBu
 func (b *DbConnectionBuilder) WithUseWebsocketToken(enabled bool) *DbConnectionBuilder {
 	b.inner.WithUseWebsocketToken(enabled)
 	return b
+}
+
+// WithUseWebSocketToken is an alias for WithUseWebsocketToken using idiomatic Go acronym casing.
+func (b *DbConnectionBuilder) WithUseWebSocketToken(enabled bool) *DbConnectionBuilder {
+	return b.WithUseWebsocketToken(enabled)
 }
 
 func (b *DbConnectionBuilder) WithLightMode(light bool) *DbConnectionBuilder {

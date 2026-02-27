@@ -30,6 +30,7 @@ type Builder struct {
 func NewBuilder() *Builder {
 	return &Builder{
 		compression:       protocol.CompressionGzip,
+		messageDecoder:    protocol.JSONMessageDecoder,
 		useWebsocketToken: true,
 	}
 }
@@ -37,6 +38,11 @@ func NewBuilder() *Builder {
 func (b *Builder) WithURI(uri string) *Builder {
 	b.uri = uri
 	return b
+}
+
+// WithURL is an alias for WithURI using idiomatic Go acronym casing.
+func (b *Builder) WithURL(uri string) *Builder {
+	return b.WithURI(uri)
 }
 
 func (b *Builder) WithDatabaseName(name string) *Builder {
@@ -77,6 +83,11 @@ func (b *Builder) WithConfirmedReads(confirmed bool) *Builder {
 func (b *Builder) WithUseWebsocketToken(enabled bool) *Builder {
 	b.useWebsocketToken = enabled
 	return b
+}
+
+// WithUseWebSocketToken is an alias for WithUseWebsocketToken using idiomatic Go acronym casing.
+func (b *Builder) WithUseWebSocketToken(enabled bool) *Builder {
+	return b.WithUseWebsocketToken(enabled)
 }
 
 func (b *Builder) OnConnect(cb func(*Connection)) *Builder {

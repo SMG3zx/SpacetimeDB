@@ -49,6 +49,9 @@ func newConnection(
 	if messageEncoder == nil {
 		messageEncoder = protocol.JSONMessageEncoder
 	}
+	if messageDecoder == nil {
+		messageDecoder = protocol.JSONMessageDecoder
+	}
 
 	return &Connection{
 		ws:             ws,

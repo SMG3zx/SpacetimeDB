@@ -13,6 +13,9 @@ func TestNewBuilderDefaults(t *testing.T) {
 	if b.compression != protocol.CompressionGzip {
 		t.Fatalf("unexpected default compression: %q", b.compression)
 	}
+	if b.messageDecoder == nil {
+		t.Fatalf("expected default message decoder to be configured")
+	}
 	if !b.useWebsocketToken {
 		t.Fatalf("expected websocket token exchange to be enabled by default")
 	}
@@ -96,5 +99,17 @@ func TestWithMessageEncoderSetsEncoder(t *testing.T) {
 	b.WithMessageEncoder(encoder)
 	if b.messageEncoder == nil {
 		t.Fatalf("expected message encoder to be set")
+	}
+}
+
+func TestAliasMethods(t *testing.T) {
+	b := NewBuilder()
+	b.WithURL("http://localhost:3000")
+	b.WithUseWebSocketToken(true)
+	if b.uri != "http://localhost:3000" {
+		t.Fatalf("expected WithURL alias to set uri")
+	}
+	if !b.useWebsocketToken {
+		t.Fatalf("expected WithUseWebSocketToken alias to set useWebsocketToken")
 	}
 }
