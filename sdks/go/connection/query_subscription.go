@@ -1,8 +1,6 @@
 package connection
 
 import (
-	"fmt"
-
 	"github.com/clockworklabs/spacetimedb/sdks/go/events"
 	"github.com/clockworklabs/spacetimedb/sdks/go/internal/protocol"
 	sdksubscription "github.com/clockworklabs/spacetimedb/sdks/go/subscription"
@@ -15,7 +13,7 @@ type subscriptionCallback = sdksubscription.Callback
 
 func (c *Connection) OneOffQuery(query string, callback OneOffQueryResultCallback) (uint32, error) {
 	if query == "" {
-		return 0, fmt.Errorf("query is required")
+		return 0, newInvalidArgument("one_off_query", "query is required")
 	}
 
 	return c.callWithRequestRoute(
@@ -31,11 +29,11 @@ func (c *Connection) OneOffQuery(query string, callback OneOffQueryResultCallbac
 
 func (c *Connection) Subscribe(queryStrings []string, callback SubscriptionCallback) (uint32, error) {
 	if len(queryStrings) == 0 {
-		return 0, fmt.Errorf("at least one query string is required")
+		return 0, newInvalidArgument("subscribe", "at least one query string is required")
 	}
 	for _, query := range queryStrings {
 		if query == "" {
-			return 0, fmt.Errorf("query strings must be non-empty")
+			return 0, newInvalidArgument("subscribe", "query strings must be non-empty")
 		}
 	}
 
@@ -48,7 +46,10 @@ func (c *Connection) Subscribe(queryStrings []string, callback SubscriptionCallb
 		c.subCallbacks.Store(queryID, wrapped)
 		c.OnQuery(queryID, func(message protocol.RoutedMessage) {
 			if !sdksubscription.IsExpectedMessageKind(message.Kind) {
-				callback(message, fmt.Errorf("unexpected subscription message kind: %q", message.Kind))
+				callback(
+					message,
+					newUnexpectedKind("subscription_route", string(message.Kind), "subscribe_applied|transaction_update|unsubscribe_applied|subscription_error"),
+				)
 				return
 			}
 

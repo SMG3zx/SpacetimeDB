@@ -14,7 +14,7 @@ type callResultCallback = events.ResultCallback
 
 func (c *Connection) CallReducer(reducer string, args []byte, callback ReducerResultCallback) (uint32, error) {
 	if reducer == "" {
-		return 0, fmt.Errorf("reducer name is required")
+		return 0, newInvalidArgument("call_reducer", "reducer name is required")
 	}
 
 	return c.callWithRequestRoute(
@@ -31,7 +31,7 @@ func (c *Connection) CallReducer(reducer string, args []byte, callback ReducerRe
 
 func (c *Connection) CallProcedure(procedure string, args []byte, callback ProcedureResultCallback) (uint32, error) {
 	if procedure == "" {
-		return 0, fmt.Errorf("procedure name is required")
+		return 0, newInvalidArgument("call_procedure", "procedure name is required")
 	}
 
 	return c.callWithRequestRoute(
@@ -58,7 +58,7 @@ func (c *Connection) callWithRequestRoute(
 			c.callCallbacks.Delete(requestID)
 			c.ClearRequestRoute(requestID)
 			if result.Kind != expectedKind {
-				callback(result, fmt.Errorf("unexpected result kind: got %q want %q", result.Kind, expectedKind))
+				callback(result, newUnexpectedKind("call_result", string(result.Kind), string(expectedKind)))
 				return
 			}
 			callback(result, nil)
@@ -79,10 +79,10 @@ func (c *Connection) callWithRequestRoute(
 func (c *Connection) sendClientMessage(message protocol.ClientMessage) error {
 	encoded, err := c.messageEncoder(message)
 	if err != nil {
-		return fmt.Errorf("encode %s message: %w", message.Kind, err)
+		return wrapError(ErrorEncodeFailed, fmt.Sprintf("encode_%s", message.Kind), err)
 	}
 	if err := c.SendBinary(encoded); err != nil {
-		return fmt.Errorf("send %s message: %w", message.Kind, err)
+		return wrapError(ErrorSendFailed, fmt.Sprintf("send_%s", message.Kind), err)
 	}
 	return nil
 }

@@ -184,9 +184,10 @@ func randomConnectionID() (string, error) {
 
 func buildSubscribeURL(host *url.URL, databaseName, connectionID string, compression protocol.Compression, light bool, confirmed *bool) *url.URL {
 	u := *host
-	if u.Scheme == "https" {
+	switch u.Scheme {
+	case "https":
 		u.Scheme = "wss"
-	} else if u.Scheme == "http" {
+	case "http":
 		u.Scheme = "ws"
 	}
 	u.Path = fmt.Sprintf("/v1/database/%s/subscribe", databaseName)
