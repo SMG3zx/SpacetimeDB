@@ -1,0 +1,6 @@
+# Go client build artifacts
+*.exe
+*.test
+
+# Generated Go client bindings
+module_bindings/
