@@ -3,6 +3,7 @@ package spacetimedb
 import (
 	"context"
 	"errors"
+	"sync"
 	"time"
 
 	"github.com/clockworklabs/spacetimedb/sdks/go/connection"
@@ -18,10 +19,22 @@ type ConnectCallback func(*DbConnection)
 type ConnectErrorCallback func(error)
 type DisconnectCallback func(*DbConnection, error)
 type MessageCallback func([]byte)
+type ConnectInfoCallback func(*DbConnection, ConnectionInfo)
+
+// ConnectionInfo captures identity/session metadata from initial_connection.
+type ConnectionInfo struct {
+	Identity     string
+	ConnectionID string
+	Token        string
+	ReceivedAt   time.Time
+}
 
 // DbConnection is a high-level SDK connection facade over connection.Connection.
 type DbConnection struct {
 	conn *connection.Connection
+
+	infoMu         sync.RWMutex
+	connectionInfo *ConnectionInfo
 }
 
 func (c *DbConnection) Raw() *connection.Connection {
@@ -40,6 +53,34 @@ func (c *DbConnection) Disconnect() error {
 		return nil
 	}
 	return c.conn.Disconnect()
+}
+
+func (c *DbConnection) ConnectionInfo() (ConnectionInfo, bool) {
+	if c == nil {
+		return ConnectionInfo{}, false
+	}
+	c.infoMu.RLock()
+	defer c.infoMu.RUnlock()
+	if c.connectionInfo == nil {
+		return ConnectionInfo{}, false
+	}
+	return *c.connectionInfo, true
+}
+
+func (c *DbConnection) Identity() (string, bool) {
+	info, ok := c.ConnectionInfo()
+	if !ok {
+		return "", false
+	}
+	return info.Identity, true
+}
+
+func (c *DbConnection) InitialConnectionID() (string, bool) {
+	info, ok := c.ConnectionInfo()
+	if !ok {
+		return "", false
+	}
+	return info.ConnectionID, true
 }
 
 func (c *DbConnection) CallReducer(ctx context.Context, reducer string, args []byte, callback ReducerResultCallback) (uint32, error) {
@@ -122,6 +163,7 @@ type DbConnectionBuilder struct {
 	inner *connection.Builder
 
 	onConnect      ConnectCallback
+	onConnectInfo  ConnectInfoCallback
 	onConnectError ConnectErrorCallback
 	onDisconnect   DisconnectCallback
 
@@ -186,6 +228,11 @@ func (b *DbConnectionBuilder) OnConnect(cb ConnectCallback) *DbConnectionBuilder
 	return b
 }
 
+func (b *DbConnectionBuilder) OnConnectInfo(cb ConnectInfoCallback) *DbConnectionBuilder {
+	b.onConnectInfo = cb
+	return b
+}
+
 func (b *DbConnectionBuilder) OnConnectError(cb ConnectErrorCallback) *DbConnectionBuilder {
 	b.onConnectError = cb
 	return b
@@ -221,9 +268,42 @@ func (b *DbConnectionBuilder) WithConnectRetry(maxAttempts int, backoff time.Dur
 
 func (b *DbConnectionBuilder) Build(ctx context.Context) (*DbConnection, error) {
 	var dbConn *DbConnection
+	var onConnectInfoOnce sync.Once
+
+	invokeConnectInfo := func(payload protocol.InitialConnectionPayload) {
+		if dbConn == nil {
+			return
+		}
+		info := ConnectionInfo{
+			Identity:     payload.Identity,
+			ConnectionID: payload.ConnectionID,
+			Token:        payload.Token,
+			ReceivedAt:   time.Now(),
+		}
+		dbConn.infoMu.Lock()
+		dbConn.connectionInfo = &info
+		dbConn.infoMu.Unlock()
+
+		if b.onConnectInfo != nil {
+			onConnectInfoOnce.Do(func() {
+				b.onConnectInfo(dbConn, info)
+			})
+		}
+	}
 
 	b.inner.OnConnect(func(conn *connection.Connection) {
 		dbConn = &DbConnection{conn: conn}
+		conn.OnKind(protocol.MessageKindInitialConnection, func(message protocol.RoutedMessage) {
+			payload, err := protocol.DecodeInitialConnectionPayload(message.Payload)
+			if err != nil {
+				if b.onConnectError != nil {
+					b.onConnectError(err)
+				}
+				return
+			}
+			invokeConnectInfo(payload)
+		})
+
 		if b.onConnect != nil {
 			b.onConnect(dbConn)
 		}

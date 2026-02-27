@@ -402,9 +402,9 @@ fn gather_imports_product(module: &ModuleDef, product: &ProductTypeDef, imports:
 }
 
 fn gather_imports_sum(module: &ModuleDef, sum: &SumTypeDef, imports: &mut Vec<String>) {
-    for (_, ty) in &sum.variants {
-        gather_imports_type(module, ty, imports);
-    }
+    // Sum values are currently emitted as `any`, so variant payload types do not
+    // appear in generated code and should not contribute imports.
+    let _ = (module, sum, imports);
 }
 
 fn gather_imports_type(module: &ModuleDef, ty: &AlgebraicTypeUse, imports: &mut Vec<String>) {
