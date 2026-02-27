@@ -62,6 +62,7 @@ pub enum ServerLanguage {
     Csharp,
     TypeScript,
     Cpp,
+    Go,
 }
 
 impl ServerLanguage {
@@ -71,6 +72,7 @@ impl ServerLanguage {
             ServerLanguage::Csharp => "csharp",
             ServerLanguage::TypeScript => "typescript",
             ServerLanguage::Cpp => "cpp",
+            ServerLanguage::Go => "go",
         }
     }
 
@@ -80,6 +82,7 @@ impl ServerLanguage {
             "csharp" | "c#" => Ok(Some(ServerLanguage::Csharp)),
             "typescript" => Ok(Some(ServerLanguage::TypeScript)),
             "cpp" | "c++" | "cxx" => Ok(Some(ServerLanguage::Cpp)),
+            "go" | "golang" => Ok(Some(ServerLanguage::Go)),
             _ => Err(anyhow!("Unknown server language: {}", s)),
         }
     }
@@ -172,7 +175,7 @@ pub fn cli() -> clap::Command {
                 .action(clap::ArgAction::SetTrue),
         )
         .arg(Arg::new("lang").long("lang").value_name("LANG").help(
-            "Server language: rust, csharp, typescript, cpp (it can only be used when --template is not specified)",
+            "Server language: rust, csharp, typescript, cpp, go (it can only be used when --template is not specified)",
         ))
         .arg(
             Arg::new("template")
@@ -851,7 +854,7 @@ async fn get_template_config_interactive(
         }
     } else if client_selection == none_index {
         // Ask for server language only
-        let server_lang_choices = vec!["Rust", "C#", "TypeScript"];
+        let server_lang_choices = vec!["Rust", "C#", "TypeScript", "C++", "Go"];
         let server_selection = Select::with_theme(&theme)
             .with_prompt("Select server language")
             .items(&server_lang_choices)
@@ -862,6 +865,8 @@ async fn get_template_config_interactive(
             0 => Some(ServerLanguage::Rust),
             1 => Some(ServerLanguage::Csharp),
             2 => Some(ServerLanguage::TypeScript),
+            3 => Some(ServerLanguage::Cpp),
+            4 => Some(ServerLanguage::Go),
             _ => unreachable!("Invalid server language selection"),
         };
 
@@ -1357,6 +1362,9 @@ fn init_builtin(config: &TemplateConfig, project_path: &Path, is_server_only: bo
         Some(ServerLanguage::Cpp) => {
             // No name update needed for C++ at the moment
         }
+        Some(ServerLanguage::Go) => {
+            // No name update needed for Go at the moment
+        }
         None => {}
     }
 
@@ -1419,6 +1427,11 @@ fn init_empty(config: &TemplateConfig, project_path: &Path) -> anyhow::Result<()
             let server_dir = project_path.join("spacetimedb");
             init_empty_cpp_server(&server_dir, &config.project_name)?;
         }
+        Some(ServerLanguage::Go) => {
+            println!("Setting up Go server...");
+            let server_dir = project_path.join("spacetimedb");
+            init_empty_go_server(&server_dir, &config.project_name)?;
+        }
         None => {}
     }
 
@@ -1443,6 +1456,10 @@ fn init_empty_typescript_server(server_dir: &Path, project_name: &str) -> anyhow
 
 fn init_empty_cpp_server(server_dir: &Path, _project_name: &str) -> anyhow::Result<()> {
     init_cpp_project(server_dir)
+}
+
+fn init_empty_go_server(server_dir: &Path, _project_name: &str) -> anyhow::Result<()> {
+    init_go_project(server_dir)
 }
 
 fn print_next_steps(config: &TemplateConfig, _project_path: &Path) -> anyhow::Result<()> {
@@ -1511,6 +1528,13 @@ fn print_next_steps(config: &TemplateConfig, _project_path: &Path) -> anyhow::Re
             }
             println!("  cargo run");
         }
+        (TemplateType::Empty, Some(ServerLanguage::Go), None) => {
+            println!(
+                "  spacetime publish --module-path spacetimedb {}{}",
+                if config.use_local { "--server local " } else { "" },
+                config.project_name
+            );
+        }
         (_, _, _) => {
             println!("  # Follow the template's README for setup instructions");
         }
@@ -1573,6 +1597,35 @@ fn check_for_dotnet() -> bool {
         .unwrap();
     }
     println!("{}", msg.yellow());
+    false
+}
+
+fn check_for_go() -> bool {
+    match std::env::consts::OS {
+        "linux" | "freebsd" | "netbsd" | "openbsd" | "solaris" | "macos" => {
+            if find_executable("go").is_some() {
+                return true;
+            }
+            println!(
+                "{}",
+                "Warning: You have created a Go project, but `go` was not found in PATH.\nInstall Go from https://go.dev/dl/\n"
+                    .yellow()
+            );
+        }
+        "windows" => {
+            if find_executable("go.exe").is_some() {
+                return true;
+            }
+            println!(
+                "{}",
+                "Warning: You have created a Go project, but `go.exe` was not found in PATH.\nInstall Go from https://go.dev/dl/\n"
+                    .yellow()
+            );
+        }
+        unsupported_os => {
+            println!("{}", format!("This OS may be unsupported: {unsupported_os}").yellow());
+        }
+    }
     false
 }
 
@@ -1737,6 +1790,34 @@ pub fn init_cpp_project(project_path: &Path) -> anyhow::Result<()> {
     }
 
     check_for_emscripten_and_cmake();
+    check_for_git();
+
+    Ok(())
+}
+
+pub fn init_go_project(project_path: &Path) -> anyhow::Result<()> {
+    let export_files = vec![
+        (
+            include_str!("../../../../templates/basic-go/spacetimedb/go.mod"),
+            "go.mod",
+        ),
+        (
+            include_str!("../../../../templates/basic-go/spacetimedb/main.go"),
+            "main.go",
+        ),
+        (
+            include_str!("../../../../templates/basic-go/spacetimedb/.gitignore"),
+            ".gitignore",
+        ),
+    ];
+
+    for data_file in export_files {
+        let path = project_path.join(data_file.1);
+        create_directory(path.parent().unwrap())?;
+        std::fs::write(path, data_file.0)?;
+    }
+
+    check_for_go();
     check_for_git();
 
     Ok(())
@@ -2038,5 +2119,17 @@ mod tests {
 
         let db = get_local_database_name(&options, "my-project", false).unwrap();
         assert_eq!(db, "my-explicit-db");
+    }
+
+    #[test]
+    fn test_parse_server_lang_go_is_supported() {
+        let parsed = parse_server_lang(&Some("go".to_string())).unwrap();
+        assert_eq!(parsed, Some(ServerLanguage::Go));
+    }
+
+    #[test]
+    fn test_parse_server_lang_golang_alias_is_supported() {
+        let parsed = parse_server_lang(&Some("golang".to_string())).unwrap();
+        assert_eq!(parsed, Some(ServerLanguage::Go));
     }
 }
