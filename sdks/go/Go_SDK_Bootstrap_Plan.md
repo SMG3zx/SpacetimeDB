@@ -7,6 +7,13 @@ Build the Go SDK in two tracks in parallel, but with shared contracts:
 
 This matches how C# works today: runtime primitives live in SDK code, and `spacetime generate` emits module-specific typed wrappers.
 
+### Current Status
+- [x] Phase 1 completed (runtime skeleton + lifecycle/message routing/cache/calls/subscriptions).
+- [x] Phase 2 completed (Go codegen backend added in `crates/codegen/src/go.rs` and exported in `crates/codegen/src/lib.rs`).
+- [x] Phase 3 completed (CLI `--lang go`, default `module_bindings`, `go.mod` auto-detect, formatter hook, and dev pipeline wiring are present).
+- [x] Phase 4 completed (Go client-api regeneration scripts added under `sdks/go/tools/`, generated protocol package separated under `sdks/go/internal/clientapi`).
+- [ ] Phase 5 in progress (parity hardening and behavior alignment work remains).
+
 ### How C# Currently Does It (Reference Model)
 - Runtime + event/subscription logic is handwritten in C#: [SpacetimeDBClient.cs](/c:/Users/OWNER/Downloads/SpacetimeDB/sdks/csharp/src/SpacetimeDBClient.cs), [AbstractEventHandler.cs](/c:/Users/OWNER/Downloads/SpacetimeDB/sdks/csharp/src/EventHandling/AbstractEventHandler.cs), and related SDK files.
 - Generated module bindings come from Rust codegen backend: [csharp.rs](/c:/Users/OWNER/Downloads/SpacetimeDB/crates/codegen/src/csharp.rs).
@@ -41,26 +48,26 @@ This matches how C# works today: runtime primitives live in SDK code, and `space
 6. [x] Implement one-off query and subscription management.
 
 #### Phase 2: Add Go backend to codegen crate
-1. Add new backend file: `crates/codegen/src/go.rs`.
-2. Register in codegen exports: [lib.rs](/c:/Users/OWNER/Downloads/SpacetimeDB/crates/codegen/src/lib.rs).
-3. Generate outputs matching runtime interfaces from Phase 1:
+1. [x] Add new backend file: `crates/codegen/src/go.rs`.
+2. [x] Register in codegen exports: [lib.rs](/c:/Users/OWNER/Downloads/SpacetimeDB/crates/codegen/src/lib.rs).
+3. [x] Generate outputs matching runtime interfaces from Phase 1:
 - global client wrapper
 - tables/views
 - reducers/procedures
 - type definitions
-4. Use existing `Lang` trait contract (table/type/reducer/procedure/global generators).
+4. [x] Use existing `Lang` trait contract (table/type/reducer/procedure/global generators).
 
 #### Phase 3: CLI integration for `--lang go`
-1. Extend language enum + parser + display name in [generate.rs](/c:/Users/OWNER/Downloads/SpacetimeDB/crates/cli/src/subcommands/generate.rs).
-2. Add default output dir for Go (use `module_bindings` for parity with C# style).
-3. Add auto-detection by `go.mod` in `detect_default_language`.
-4. Add formatter integration hook (initially no-op; optional `gofmt` task later).
-5. Ensure `dev` path can resolve/use Go generate targets via existing generate-entry pipeline.
+1. [x] Extend language enum + parser + display name in [generate.rs](/c:/Users/OWNER/Downloads/SpacetimeDB/crates/cli/src/subcommands/generate.rs).
+2. [x] Add default output dir for Go (use `module_bindings` for parity with C# style).
+3. [x] Add auto-detection by `go.mod` in `detect_default_language`.
+4. [x] Add formatter integration hook (initially no-op; optional `gofmt` task later).
+5. [x] Ensure `dev` path can resolve/use Go generate targets via existing generate-entry pipeline.
 
 #### Phase 4: Protocol schema generation support for Go runtime
-1. Mirror C# `ClientApi` flow: generate Go wire types from `client-api-messages` schema source used by [get_ws_schema_v2.rs](/c:/Users/OWNER/Downloads/SpacetimeDB/crates/client-api-messages/examples/get_ws_schema_v2.rs).
-2. Keep generated protocol types separate from module binding codegen to reduce churn.
-3. Add regeneration script under `sdks/go/tools/`.
+1. [x] Mirror C# `ClientApi` flow: generate Go wire types from `client-api-messages` schema source used by [get_ws_schema_v2.rs](/c:/Users/OWNER/Downloads/SpacetimeDB/crates/client-api-messages/examples/get_ws_schema_v2.rs).
+2. [x] Keep generated protocol types separate from module binding codegen to reduce churn.
+3. [x] Add regeneration script under `sdks/go/tools/`.
 
 #### Phase 5: SDK parity hardening
 1. Match Rust/C# capabilities:
@@ -75,13 +82,13 @@ This matches how C# works today: runtime primitives live in SDK code, and `space
 ### Test Cases and Scenarios
 
 #### Codegen tests
-1. Add snapshot test case in [codegen.rs](/c:/Users/OWNER/Downloads/SpacetimeDB/crates/codegen/tests/codegen.rs) for Go backend outputs.
-2. Verify generated file naming/layout stability.
+1. [x] Add snapshot test case in [codegen.rs](/c:/Users/OWNER/Downloads/SpacetimeDB/crates/codegen/tests/codegen.rs) for Go backend outputs.
+2. [x] Verify generated file naming/layout stability.
 
 #### CLI tests
-1. Parse/serde tests for `--lang go`.
-2. Default out-dir and detection tests (`go.mod` presence).
-3. Multi-entry generate config behavior with Go entries.
+1. [x] Parse/serde tests for `--lang go`.
+2. [x] Default out-dir and detection tests (`go.mod` presence).
+3. [~] Multi-entry generate config behavior with Go entries (generic multi-entry coverage exists; add explicit Go-targeted case if needed).
 
 #### Runtime integration tests (Go)
 1. Connect/auth/disconnect lifecycle.

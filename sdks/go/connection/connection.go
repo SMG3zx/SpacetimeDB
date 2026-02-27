@@ -117,7 +117,7 @@ func (c *Connection) SendBinary(payload []byte) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	if c.closed.Load() {
-		return errors.New("connection is closed")
+		return wrapError(ErrorConnectionClosed, "send_binary", errors.New("connection is closed"))
 	}
 	return c.ws.WriteMessage(websocket.BinaryMessage, payload)
 }
