@@ -47,6 +47,18 @@ pub(crate) fn has_go_fmt() -> bool {
     }
 }
 
+/// Check if `go` is installed (aka: Is in the `PATH`).
+pub(crate) fn has_go() -> bool {
+    match std::env::consts::OS {
+        "linux" | "freebsd" | "netbsd" | "openbsd" | "solaris" | "macos" => find_executable("go").is_some(),
+        "windows" => find_executable("go.exe").is_some(),
+        unsupported_os => {
+            eprintln!("This OS may be unsupported for `go`: {unsupported_os}");
+            false
+        }
+    }
+}
+
 /// Check if the target `wasm32-unknown-unknown` is installed.
 pub(crate) fn has_wasm32_target() -> bool {
     let result = || {
