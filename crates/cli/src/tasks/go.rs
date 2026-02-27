@@ -13,6 +13,7 @@ pub(crate) fn build_go(project_path: &Path, build_debug: bool) -> anyhow::Result
         anyhow::bail!("Go compiler not found in PATH. Please install Go (1.21+ recommended).");
     }
 
+    let project_path = fs::canonicalize(project_path).context("Failed to resolve Go project path")?;
     let output_dir = project_path.join("build");
     fs::create_dir_all(&output_dir).context("Failed to create Go build output directory")?;
     let output = output_dir.join("module.wasm");
@@ -27,7 +28,7 @@ pub(crate) fn build_go(project_path: &Path, build_debug: bool) -> anyhow::Result
 
     let mut cmd = duct::cmd("go", args);
 
-    cmd = cmd.dir(project_path).env("GOOS", "wasip1").env("GOARCH", "wasm");
+    cmd = cmd.dir(&project_path).env("GOOS", "wasip1").env("GOARCH", "wasm");
 
     cmd.run().context(
         "Failed to build Go module for WASI. Ensure your module is a valid Go WASM target and uses package main.",
