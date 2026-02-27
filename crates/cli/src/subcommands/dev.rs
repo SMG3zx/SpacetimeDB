@@ -81,7 +81,7 @@ pub fn cli() -> Command {
             Arg::new("client-lang")
                 .long("client-lang")
                 .value_parser(clap::value_parser!(Language))
-                .help("The programming language for the generated client module bindings (e.g., typescript, csharp, python). If not specified, it will be detected from the project."),
+                .help("The programming language for the generated client module bindings (e.g., typescript, csharp, go). If not specified, it will be detected from the project."),
         )
         .arg(common_args::server().help("The nickname, host name or URL of the server to publish to"))
         .arg(common_args::yes())
@@ -146,6 +146,7 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
     let project_path = args.get_one::<PathBuf>("project-path").unwrap();
     let module_path_from_cli = args.get_one::<PathBuf>("module-path");
     let module_bindings_path = args.get_one::<PathBuf>("module-bindings-path").unwrap();
+    let module_bindings_path_from_cli = args.value_source("module-bindings-path") == Some(ValueSource::CommandLine);
     let client_language = args.get_one::<Language>("client-lang");
     let clear_database = args
         .get_one::<ClearMode>("clear-database")
@@ -315,8 +316,6 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
 
     let module_path_from_cli_flag = args.value_source("module-path") == Some(ValueSource::CommandLine);
     let project_path_from_cli_flag = args.value_source("project-path") == Some(ValueSource::CommandLine);
-    let module_bindings_path_from_cli_flag =
-        args.value_source("module-bindings-path") == Some(ValueSource::CommandLine);
 
     if has_publish_targets_in_config && module_path_from_cli_flag {
         anyhow::bail!(
@@ -326,7 +325,7 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
     }
 
     if has_generate_targets_in_config
-        && (module_path_from_cli_flag || project_path_from_cli_flag || module_bindings_path_from_cli_flag)
+        && (module_path_from_cli_flag || project_path_from_cli_flag || module_bindings_path_from_cli)
     {
         anyhow::bail!(
             "`--module-path`, `--project-path`, and `--module-bindings-path` cannot be used when \
@@ -474,6 +473,15 @@ pub async fn exec(mut config: Config, args: &ArgMatches) -> Result<(), anyhow::E
     let using_spacetime_config = spacetime_config.is_some();
     let generate_configs_from_file: Vec<HashMap<String, serde_json::Value>> =
         spacetime_config.and_then(|c| c.generate.clone()).unwrap_or_default();
+
+    // If generate targets are not configured and module-bindings-path was not provided via CLI,
+    // align dev defaults with `spacetime generate` language-specific defaults.
+    if generate_configs_from_file.is_empty() && !module_bindings_path_from_cli {
+        let resolved_client_language = generate::resolve_language(&project_dir, client_language.copied())?;
+        if let Some(default_rel_out_dir) = generate::default_out_dir_for_language(resolved_client_language) {
+            module_bindings_dir = project_dir.join(default_rel_out_dir);
+        }
+    }
 
     // Re-resolve publish targets now that config files may have been created by init.
     if publish_configs.is_empty() {
@@ -1000,7 +1008,7 @@ async fn generate_build_and_publish(
     // from config so the client connects to the correct database.
     if let Some(first_config) = publish_configs.first() {
         let is_ts_client = client_language == Some(&Language::TypeScript)
-            || generate::resolve_language(spacetimedb_dir, client_language.copied())
+            || generate::resolve_language(project_dir, client_language.copied())
                 .map(|l| l == Language::TypeScript)
                 .unwrap_or(false);
 
@@ -1040,7 +1048,7 @@ async fn generate_build_and_publish(
             .await?;
         }
     } else {
-        let resolved_client_language = generate::resolve_language(spacetimedb_dir, client_language.copied())?;
+        let resolved_client_language = generate::resolve_language(project_dir, client_language.copied())?;
 
         println!("{}", "Generating module bindings...".cyan());
         let generate_entry = generate::build_generate_entry(
