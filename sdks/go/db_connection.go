@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/clockworklabs/spacetimedb/sdks/go/connection"
-	"github.com/clockworklabs/spacetimedb/sdks/go/internal/protocol"
+	"github.com/SMG3zx/SpacetimeDB/sdks/go/connection"
+	"github.com/SMG3zx/SpacetimeDB/sdks/go/internal/protocol"
 )
 
 type ReducerResultCallback = connection.ReducerResultCallback

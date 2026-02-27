@@ -1,6 +1,6 @@
 package subscription
 
-import "github.com/clockworklabs/spacetimedb/sdks/go/internal/protocol"
+import "github.com/SMG3zx/SpacetimeDB/sdks/go/internal/protocol"
 
 // Callback receives routed subscription lifecycle/update messages.
 type Callback func(protocol.RoutedMessage, error)

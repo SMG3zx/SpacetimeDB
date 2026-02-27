@@ -7,7 +7,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	spacetimedb "github.com/clockworklabs/spacetimedb/sdks/go"
+	spacetimedb "github.com/SMG3zx/SpacetimeDB/sdks/go"
 )
 
 func main() {

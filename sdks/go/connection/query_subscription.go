@@ -1,9 +1,9 @@
 package connection
 
 import (
-	"github.com/clockworklabs/spacetimedb/sdks/go/events"
-	"github.com/clockworklabs/spacetimedb/sdks/go/internal/protocol"
-	sdksubscription "github.com/clockworklabs/spacetimedb/sdks/go/subscription"
+	"github.com/SMG3zx/SpacetimeDB/sdks/go/events"
+	"github.com/SMG3zx/SpacetimeDB/sdks/go/internal/protocol"
+	sdksubscription "github.com/SMG3zx/SpacetimeDB/sdks/go/subscription"
 )
 
 type OneOffQueryResultCallback = events.OneOffQueryResultCallback

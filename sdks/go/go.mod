@@ -1,4 +1,4 @@
-module github.com/clockworklabs/spacetimedb/sdks/go
+module github.com/SMG3zx/SpacetimeDB/sdks/go
 
 go 1.22
 

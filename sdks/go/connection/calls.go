@@ -3,8 +3,8 @@ package connection
 import (
 	"fmt"
 
-	"github.com/clockworklabs/spacetimedb/sdks/go/events"
-	"github.com/clockworklabs/spacetimedb/sdks/go/internal/protocol"
+	"github.com/SMG3zx/SpacetimeDB/sdks/go/events"
+	"github.com/SMG3zx/SpacetimeDB/sdks/go/internal/protocol"
 )
 
 type ReducerResultCallback = events.ReducerResultCallback

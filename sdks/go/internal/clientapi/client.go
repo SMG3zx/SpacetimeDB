@@ -6,7 +6,7 @@ package clientapi
 import (
 	"context"
 	"errors"
-	"github.com/clockworklabs/spacetimedb/sdks/go/connection"
+	"github.com/SMG3zx/SpacetimeDB/sdks/go/connection"
 )
 
 type Result[T any, E any] struct {

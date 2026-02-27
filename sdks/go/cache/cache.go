@@ -4,7 +4,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	sdktypes "github.com/clockworklabs/spacetimedb/sdks/go/types"
+	sdktypes "github.com/SMG3zx/SpacetimeDB/sdks/go/types"
 )
 
 // Store holds client-side table state and applies transactions atomically.

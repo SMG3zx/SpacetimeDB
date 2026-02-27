@@ -1,6 +1,6 @@
 package events
 
-import "github.com/clockworklabs/spacetimedb/sdks/go/internal/protocol"
+import "github.com/SMG3zx/SpacetimeDB/sdks/go/internal/protocol"
 
 // ResultCallback is the shared callback signature for routed result events.
 type ResultCallback func(protocol.RoutedMessage, error)

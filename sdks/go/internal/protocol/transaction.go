@@ -1,6 +1,6 @@
 package protocol
 
-import sdktypes "github.com/clockworklabs/spacetimedb/sdks/go/types"
+import sdktypes "github.com/SMG3zx/SpacetimeDB/sdks/go/types"
 
 type Row = sdktypes.Row
 type TableMutation = sdktypes.TableMutation

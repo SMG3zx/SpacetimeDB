@@ -98,7 +98,7 @@ impl Lang for Go {
         let mut output = String::new();
         print_go_header(
             &mut output,
-            &["context", "github.com/clockworklabs/spacetimedb/sdks/go/connection"],
+            &["context", "github.com/SMG3zx/SpacetimeDB/sdks/go/connection"],
         );
 
         let method_name = reducer_method_name(&reducer.accessor_name);
@@ -123,7 +123,7 @@ impl Lang for Go {
         let mut output = String::new();
         print_go_header(
             &mut output,
-            &["context", "github.com/clockworklabs/spacetimedb/sdks/go/connection"],
+            &["context", "github.com/SMG3zx/SpacetimeDB/sdks/go/connection"],
         );
 
         let method_name = procedure_method_name(&procedure.accessor_name);
@@ -151,7 +151,7 @@ impl Lang for Go {
             &[
                 "context",
                 "errors",
-                "github.com/clockworklabs/spacetimedb/sdks/go/connection",
+                "github.com/SMG3zx/SpacetimeDB/sdks/go/connection",
             ],
         );
         writeln!(client, "type Result[T any, E any] struct {{");

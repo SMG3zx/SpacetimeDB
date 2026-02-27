@@ -3,7 +3,7 @@ package subscription
 import (
 	"testing"
 
-	"github.com/clockworklabs/spacetimedb/sdks/go/internal/protocol"
+	"github.com/SMG3zx/SpacetimeDB/sdks/go/internal/protocol"
 )
 
 func TestIsExpectedMessageKind(t *testing.T) {
