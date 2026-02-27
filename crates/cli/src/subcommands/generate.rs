@@ -6,7 +6,7 @@ use clap::Arg;
 use clap::ArgAction::{Set, SetTrue};
 use fs_err as fs;
 use spacetimedb_codegen::{
-    generate, private_table_names, CodegenOptions, CodegenVisibility, Csharp, Lang, OutputFile, Rust, TypeScript,
+    generate, private_table_names, CodegenOptions, CodegenVisibility, Csharp, Go, Lang, OutputFile, Rust, TypeScript,
     UnrealCpp, AUTO_GENERATED_PREFIX,
 };
 use spacetimedb_lib::de::serde::DeserializeWrapper;
@@ -20,6 +20,7 @@ use crate::spacetime_config::{
     find_and_load_with_env, CommandConfig, CommandSchema, CommandSchemaBuilder, Key, LoadedConfig, SpacetimeConfig,
 };
 use crate::tasks::csharp::dotnet_format;
+use crate::tasks::go::gofmt;
 use crate::tasks::rust::rustfmt;
 use crate::util::{resolve_sibling_binary, y_or_n};
 use crate::Config;
@@ -387,6 +388,9 @@ fn detect_default_language(client_project_dir: &Path) -> anyhow::Result<Language
     if client_project_dir.join("Cargo.toml").exists() {
         return Ok(Language::Rust);
     }
+    if client_project_dir.join("go.mod").exists() {
+        return Ok(Language::Go);
+    }
     if let Ok(entries) = fs::read_dir(client_project_dir) {
         if entries
             .flatten()
@@ -408,6 +412,7 @@ fn language_cli_name(lang: Language) -> &'static str {
         Language::Rust => "rust",
         Language::Csharp => "csharp",
         Language::TypeScript => "typescript",
+        Language::Go => "go",
         Language::UnrealCpp => "unrealcpp",
     }
 }
@@ -415,7 +420,7 @@ fn language_cli_name(lang: Language) -> &'static str {
 pub fn default_out_dir_for_language(lang: Language) -> Option<PathBuf> {
     match lang {
         Language::Rust | Language::TypeScript => Some(PathBuf::from("src/module_bindings")),
-        Language::Csharp => Some(PathBuf::from("module_bindings")),
+        Language::Csharp | Language::Go => Some(PathBuf::from("module_bindings")),
         Language::UnrealCpp => None,
     }
 }
@@ -517,6 +522,7 @@ pub async fn run_prepared_generate_configs(
             }
             Language::Rust => &Rust,
             Language::TypeScript => &TypeScript,
+            Language::Go => &Go,
         };
 
         for OutputFile { filename, code } in generate(&module, gen_lang, &options) {
@@ -677,19 +683,22 @@ pub enum Language {
     Csharp,
     TypeScript,
     Rust,
+    #[serde(alias = "golang")]
+    Go,
     #[serde(alias = "uecpp", alias = "ue5cpp", alias = "unreal")]
     UnrealCpp,
 }
 
 impl clap::ValueEnum for Language {
     fn value_variants<'a>() -> &'a [Self] {
-        &[Self::Csharp, Self::TypeScript, Self::Rust, Self::UnrealCpp]
+        &[Self::Csharp, Self::TypeScript, Self::Rust, Self::Go, Self::UnrealCpp]
     }
     fn to_possible_value(&self) -> Option<PossibleValue> {
         Some(match self {
             Self::Csharp => clap::builder::PossibleValue::new("csharp").aliases(["c#", "cs"]),
             Self::TypeScript => clap::builder::PossibleValue::new("typescript").aliases(["ts", "TS"]),
             Self::Rust => clap::builder::PossibleValue::new("rust").aliases(["rs", "RS"]),
+            Self::Go => clap::builder::PossibleValue::new("go").aliases(["golang"]),
             Self::UnrealCpp => PossibleValue::new("unrealcpp").aliases(["uecpp", "ue5cpp", "unreal"]),
         })
     }
@@ -702,6 +711,7 @@ impl Language {
             Language::Rust => "Rust",
             Language::Csharp => "C#",
             Language::TypeScript => "TypeScript",
+            Language::Go => "Go",
             Language::UnrealCpp => "Unreal C++",
         }
     }
@@ -712,6 +722,9 @@ impl Language {
             Language::Csharp => dotnet_format(project_dir, generated_files)?,
             Language::TypeScript => {
                 // TODO: implement formatting.
+            }
+            Language::Go => {
+                gofmt(project_dir, generated_files)?;
             }
             Language::UnrealCpp => {
                 // TODO: implement formatting.
@@ -1071,6 +1084,24 @@ mod tests {
     }
 
     #[test]
+    fn test_go_defaults_out_dir() {
+        let cmd = cli();
+        let schema = build_generate_config_schema(&cmd).unwrap();
+        let matches = cmd.clone().get_matches_from(vec!["generate", "--lang", "go"]);
+        let temp = tempfile::TempDir::new().unwrap();
+        let module_dir = temp.path().join("spacetimedb");
+        std::fs::create_dir_all(&module_dir).unwrap();
+        let mut cfg = HashMap::new();
+        cfg.insert(
+            "module-path".to_string(),
+            serde_json::Value::String(module_dir.display().to_string()),
+        );
+        let command_config = CommandConfig::new(&schema, cfg, &matches).unwrap();
+        let runs = prepare_generate_run_configs(vec![command_config], false, None).unwrap();
+        assert_eq!(runs[0].out_dir, PathBuf::from("module_bindings"));
+    }
+
+    #[test]
     fn test_detect_typescript_language_from_client_project() {
         let cmd = cli();
         let schema = build_generate_config_schema(&cmd).unwrap();
@@ -1107,6 +1138,26 @@ mod tests {
         let command_config = CommandConfig::new(&schema, cfg, &matches).unwrap();
         let runs = prepare_generate_run_configs(vec![command_config], true, Some(temp.path())).unwrap();
         assert_eq!(runs[0].lang, Language::Csharp);
+        assert_eq!(runs[0].out_dir, temp.path().join("module_bindings"));
+    }
+
+    #[test]
+    fn test_detect_go_language_from_client_project() {
+        let cmd = cli();
+        let schema = build_generate_config_schema(&cmd).unwrap();
+        let matches = cmd.clone().get_matches_from(vec!["generate"]);
+        let temp = tempfile::TempDir::new().unwrap();
+        let module_dir = temp.path().join("spacetimedb");
+        std::fs::create_dir_all(&module_dir).unwrap();
+        std::fs::write(temp.path().join("go.mod"), "module example.com/client\n").unwrap();
+        let mut cfg = HashMap::new();
+        cfg.insert(
+            "module-path".to_string(),
+            serde_json::Value::String(module_dir.display().to_string()),
+        );
+        let command_config = CommandConfig::new(&schema, cfg, &matches).unwrap();
+        let runs = prepare_generate_run_configs(vec![command_config], true, Some(temp.path())).unwrap();
+        assert_eq!(runs[0].lang, Language::Go);
         assert_eq!(runs[0].out_dir, temp.path().join("module_bindings"));
     }
 
@@ -1363,6 +1414,10 @@ mod tests {
         assert_eq!(
             serde_json::from_value::<Language>(serde_json::Value::String("rust".into())).unwrap(),
             Language::Rust
+        );
+        assert_eq!(
+            serde_json::from_value::<Language>(serde_json::Value::String("go".into())).unwrap(),
+            Language::Go
         );
         assert_eq!(
             serde_json::from_value::<Language>(serde_json::Value::String("unrealcpp".into())).unwrap(),
