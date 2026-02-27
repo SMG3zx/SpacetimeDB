@@ -35,6 +35,18 @@ pub(crate) fn has_rust_fmt() -> bool {
     }
 }
 
+/// Check if `gofmt` is installed (aka: Is in the `PATH`).
+pub(crate) fn has_go_fmt() -> bool {
+    match std::env::consts::OS {
+        "linux" | "freebsd" | "netbsd" | "openbsd" | "solaris" | "macos" => find_executable("gofmt").is_some(),
+        "windows" => find_executable("gofmt.exe").is_some(),
+        unsupported_os => {
+            eprintln!("This OS may be unsupported for `gofmt`: {unsupported_os}");
+            false
+        }
+    }
+}
+
 /// Check if the target `wasm32-unknown-unknown` is installed.
 pub(crate) fn has_wasm32_target() -> bool {
     let result = || {
