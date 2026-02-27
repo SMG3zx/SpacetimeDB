@@ -3,6 +3,8 @@ package spacetimedb
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -33,9 +35,10 @@ func TestDbConnectionContextCancellation(t *testing.T) {
 
 func TestDbConnectionBuilderConnectRetryAttempts(t *testing.T) {
 	var connectErrors atomic.Int32
+	port := lowestUnusedUnprivilegedPort(t)
 
 	_, err := NewDbConnectionBuilder().
-		WithURI("http://127.0.0.1:1").
+		WithURI(fmt.Sprintf("http://127.0.0.1:%d", port)).
 		WithDatabaseName("db").
 		WithConnectRetry(3, 0).
 		OnConnectError(func(error) {
@@ -51,6 +54,7 @@ func TestDbConnectionBuilderConnectRetryAttempts(t *testing.T) {
 }
 
 func TestDbConnectionBuilderConnectRetryHonorsContextCancellation(t *testing.T) {
+	port := lowestUnusedUnprivilegedPort(t)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
@@ -60,11 +64,25 @@ func TestDbConnectionBuilderConnectRetryHonorsContextCancellation(t *testing.T) 
 	}()
 
 	_, err := NewDbConnectionBuilder().
-		WithURI("http://127.0.0.1:1").
+		WithURI(fmt.Sprintf("http://127.0.0.1:%d", port)).
 		WithDatabaseName("db").
 		WithConnectRetry(10, 250*time.Millisecond).
 		Build(ctx)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("expected context.Canceled, got: %v", err)
 	}
+}
+
+func lowestUnusedUnprivilegedPort(t *testing.T) int {
+	t.Helper()
+	for port := 1024; port <= 65535; port++ {
+		l, err := net.Listen("tcp", fmt.Sprintf("127.0.0.1:%d", port))
+		if err != nil {
+			continue
+		}
+		_ = l.Close()
+		return port
+	}
+	t.Fatal("failed to find an unused unprivileged localhost port")
+	return 0
 }
