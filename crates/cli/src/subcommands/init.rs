@@ -93,6 +93,7 @@ pub enum ClientLanguage {
     Rust,
     Csharp,
     TypeScript,
+    Go,
 }
 
 impl ClientLanguage {
@@ -101,6 +102,7 @@ impl ClientLanguage {
             ClientLanguage::Rust => "rust",
             ClientLanguage::Csharp => "csharp",
             ClientLanguage::TypeScript => "typescript",
+            ClientLanguage::Go => "go",
         }
     }
 
@@ -109,6 +111,7 @@ impl ClientLanguage {
             "rust" => Ok(Some(ClientLanguage::Rust)),
             "csharp" | "c#" => Ok(Some(ClientLanguage::Csharp)),
             "typescript" => Ok(Some(ClientLanguage::TypeScript)),
+            "go" | "golang" => Ok(Some(ClientLanguage::Go)),
             _ => Err(anyhow!("Unknown client language: {}", s)),
         }
     }
@@ -1332,6 +1335,9 @@ fn init_builtin(config: &TemplateConfig, project_path: &Path, is_server_only: bo
             Some(ClientLanguage::Csharp) => {
                 update_csproj_client_to_nuget(project_path)?;
             }
+            Some(ClientLanguage::Go) => {
+                check_for_go();
+            }
             None => {}
         }
     }
@@ -1502,6 +1508,24 @@ fn print_next_steps(config: &TemplateConfig, _project_path: &Path) -> anyhow::Re
                 config.project_name
             );
             println!("  spacetime generate --lang csharp --out-dir module_bindings --module-path spacetimedb");
+        }
+        (TemplateType::Builtin, Some(ServerLanguage::Go), Some(ClientLanguage::Go)) => {
+            println!(
+                "  spacetime publish --module-path spacetimedb {}{}",
+                if config.use_local { "--server local " } else { "" },
+                config.project_name
+            );
+            println!("  spacetime generate --lang go --out-dir client/module_bindings --module-path spacetimedb");
+            println!("  cd client");
+            println!("  go mod tidy");
+            println!("  go run .");
+        }
+        (TemplateType::Builtin, Some(ServerLanguage::Go), None) => {
+            println!(
+                "  spacetime publish --module-path spacetimedb {}{}",
+                if config.use_local { "--server local " } else { "" },
+                config.project_name
+            );
         }
         (TemplateType::Empty, _, Some(ClientLanguage::TypeScript)) => {
             println!("  npm install");
@@ -2131,5 +2155,17 @@ mod tests {
     fn test_parse_server_lang_golang_alias_is_supported() {
         let parsed = parse_server_lang(&Some("golang".to_string())).unwrap();
         assert_eq!(parsed, Some(ServerLanguage::Go));
+    }
+
+    #[test]
+    fn test_parse_client_lang_empty_is_none() {
+        let parsed = parse_client_lang(&Some(String::new())).unwrap();
+        assert_eq!(parsed, None);
+    }
+
+    #[test]
+    fn test_parse_client_lang_go_is_supported() {
+        let parsed = parse_client_lang(&Some("go".to_string())).unwrap();
+        assert_eq!(parsed, Some(ClientLanguage::Go));
     }
 }
