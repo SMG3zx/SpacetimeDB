@@ -83,6 +83,22 @@ Replace:
 - **YOUR_MODULE_NAME** with the name of your Unreal module, typically the name of the project
 
 </TabItem>
+<TabItem value="go" label="Go">
+
+```bash
+mkdir -p module_bindings
+spacetime generate --lang go --out-dir module_bindings --module-path PATH-TO-MODULE-DIRECTORY
+```
+
+This generates Go files in `module_bindings/`. Import them in your client:
+
+```go
+import "your-module/module_bindings"
+```
+
+Replace **PATH-TO-MODULE-DIRECTORY** with the path to your module's directory, where the module's `go.mod` is located.
+
+</TabItem>
 </Tabs>
 
 ## What Gets Generated
@@ -170,6 +186,21 @@ Context.Db->User
 ```
 
 </TabItem>
+<TabItem value="go" label="Go">
+
+```go
+// Generated type
+type User struct {
+	Id    uint64
+	Name  string
+	Email string
+}
+
+// Access via DbConnection
+conn.Db.User
+```
+
+</TabItem>
 </Tabs>
 
 See the [Tables](../00300-tables.md) documentation for details on defining tables in your module.
@@ -242,6 +273,19 @@ void OnCreateUser(const FReducerEventContext& Ctx, const FString& Name, const FS
 {
     UE_LOG(LogTemp, Log, TEXT("User created: %s"), *Name);
 }
+```
+
+</TabItem>
+<TabItem value="go" label="Go">
+
+```go
+// Call the reducer
+conn.Reducers.CreateUser(name, email)
+
+// Register a callback to observe reducer invocations
+conn.Reducers.OnCreateUser(func(ctx reducers.EventContext, name string, email string) {
+    fmt.Printf("User created: %s\n", name)
+})
 ```
 
 </TabItem>
@@ -335,6 +379,23 @@ void OnFetchComplete(const FProcedureEventContext& Ctx, const FString& Result, b
 ```
 
 </TabItem>
+<TabItem value="go" label="Go">
+
+```go
+// Call the procedure without a callback
+conn.Procedures.FetchExternalData(url, nil)
+
+// Call the procedure with a callback for the result
+conn.Procedures.FetchExternalData(url, func(ctx procedures.EventContext, result string, err error) {
+    if err == nil {
+        fmt.Printf("Got result: %s\n", result)
+    } else {
+        fmt.Printf("Error: %v\n", err)
+    }
+})
+```
+
+</TabItem>
 </Tabs>
 
 See the [Procedures](../00200-functions/00400-procedures.md) documentation for details on defining procedures in your module.
@@ -363,7 +424,7 @@ Once you've generated the bindings, you're ready to connect to your database and
 
 - [Connecting to SpacetimeDB](./00300-connection.md) for establishing a connection
 - [SDK API Reference](./00400-sdk-api.md) for using the generated bindings
-- Language-specific references: [Rust](./00500-rust-reference.md), [C#](./00600-csharp-reference.md), [TypeScript](./00700-typescript-reference.md), [Unreal](./00800-unreal-reference.md)
+- Language-specific references: [Rust](./00500-rust-reference.md), [C#](./00600-csharp-reference.md), [TypeScript](./00700-typescript-reference.md), [Unreal](./00800-unreal-reference.md), [Go](./00900-go-reference.md)
 
 ## Troubleshooting
 

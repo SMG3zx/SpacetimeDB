@@ -10,6 +10,7 @@ fn main() {
     println!("cargo:rustc-env=GIT_HASH={git_hash}");
 
     generate_template_files();
+    generate_embedded_go_sdk();
 }
 
 fn nix_injected_commit_hash() -> Option<String> {
@@ -650,4 +651,79 @@ fn copy_if_changed(src: &Path, dst: &Path) -> io::Result<()> {
 
     let mut file = fs::File::create(dst)?;
     file.write_all(&src_bytes)
+}
+
+/// Generates embedded Go SDK files so the CLI can extract them at build time
+/// for Go module compilation. This embeds both the server SDK (crates/bindings-go)
+/// and client SDK (sdks/go) source files.
+fn generate_embedded_go_sdk() {
+    let repo_root = get_repo_root();
+    let out_dir = std::env::var("OUT_DIR").unwrap();
+    let dest_path = Path::new(&out_dir).join("embedded_go_sdk.rs");
+
+    println!("cargo:rerun-if-changed=../../crates/bindings-go");
+    println!("cargo:rerun-if-changed=../../sdks/go");
+
+    let server_sdk_dir = repo_root.join("crates").join("bindings-go");
+    let client_sdk_dir = repo_root.join("sdks").join("go");
+
+    let mut code = String::new();
+
+    // Generate server SDK files function.
+    code.push_str("pub fn server_sdk_files() -> Vec<(&'static str, &'static str)> {\n");
+    code.push_str("    vec![\n");
+    generate_go_sdk_entries(&mut code, &server_sdk_dir, &server_sdk_dir);
+    code.push_str("    ]\n");
+    code.push_str("}\n\n");
+
+    // Generate client SDK files function.
+    code.push_str("pub fn client_sdk_files() -> Vec<(&'static str, &'static str)> {\n");
+    code.push_str("    vec![\n");
+    generate_go_sdk_entries(&mut code, &client_sdk_dir, &client_sdk_dir);
+    code.push_str("    ]\n");
+    code.push_str("}\n");
+
+    write_if_changed(&dest_path, code.as_bytes()).expect("Failed to write embedded_go_sdk.rs");
+}
+
+fn generate_go_sdk_entries(code: &mut String, dir: &Path, base_dir: &Path) {
+    let entries = match fs::read_dir(dir) {
+        Ok(entries) => entries,
+        Err(_) => return,
+    };
+
+    let mut paths: Vec<_> = entries.flatten().map(|e| e.path()).collect();
+    paths.sort();
+
+    for path in paths {
+        let name = path.file_name().and_then(|n| n.to_str()).unwrap_or("");
+
+        // Skip non-essential files.
+        if name.starts_with('.') || name == "examples" || name == "tests" || name.ends_with("_test.go") {
+            continue;
+        }
+
+        if path.is_dir() {
+            // Skip cmd directory (stdbgen tool, not needed for compilation).
+            if name == "cmd" {
+                continue;
+            }
+            generate_go_sdk_entries(code, &path, base_dir);
+        } else if path.is_file() {
+            // Only include .go files, go.mod, and go.sum.
+            let ext = path.extension().and_then(|e| e.to_str()).unwrap_or("");
+            if ext != "go" && name != "go.mod" && name != "go.sum" {
+                continue;
+            }
+
+            let relative = path.strip_prefix(base_dir).unwrap();
+            let relative_str = relative.to_str().unwrap().replace('\\', "/");
+            let full_path_str = path.to_str().unwrap().replace('\\', "\\\\");
+
+            code.push_str(&format!(
+                "        (\"{}\", include_str!(\"{}\")),\n",
+                relative_str, full_path_str
+            ));
+        }
+    }
 }

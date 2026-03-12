@@ -9,6 +9,7 @@ mod confirmed_reads;
 mod connect_disconnect_from_cli;
 mod create_project;
 mod csharp_module;
+mod go_module;
 mod default_module_clippy;
 mod delete_database;
 mod describe;

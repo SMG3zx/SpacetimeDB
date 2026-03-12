@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"testing"
 
-	sdktypes "github.com/SMG3zx/SpacetimeDB/sdks/go/types"
+	sdktypes "github.com/clockworklabs/spacetimedb-go/types"
 )
 
 func TestApplyTransactionAtomicallyPublishesState(t *testing.T) {

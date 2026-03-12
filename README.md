@@ -286,6 +286,26 @@ You can write SpacetimeDB modules in several popular languages, with more to com
 - [C#](https://spacetimedb.com/docs/sdks/c-sharp/quickstart)
 - [Typescript](https://spacetimedb.com/docs/sdks/typescript/quickstart)
 
+## Module Benchmark Results
+
+Benchmark comparison across all five server-side module languages (lower is better). All benchmarks run with `count=256` on the same hardware using Criterion.
+
+| Benchmark | Rust | C# | Go | C++ | TypeScript |
+|-----------|------|----|----|-----|------------|
+| empty | 13.4 µs | 76.5 µs | 23.2 µs | 13.1 µs | 13.8 µs |
+| insert_bulk/str/unique_0 | 137.2 µs | 5,492 µs | 139.2 µs | 276.7 µs | 239.3 µs |
+| insert_bulk/str/btree_each_column | 199.1 µs | 5,735 µs | 204.9 µs | 343.0 µs | 299.7 µs |
+| insert_bulk/u64/unique_0 | 92.0 µs | 3,410 µs | 100.6 µs | 213.4 µs | 115.1 µs |
+| insert_bulk/u64/btree_each_column | 130.8 µs | 3,480 µs | 137.2 µs | 253.0 µs | 150.3 µs |
+| iterate/u32_u64_str/unique_0 | 30.4 µs | 1,890 µs | 31.5 µs | 29.9 µs | 63.4 µs |
+| iterate/u64/unique_0 | 20.0 µs | 877 µs | 27.6 µs | 18.7 µs | 41.4 µs |
+
+**Key takeaways:**
+- **Go** achieves near-parity with Rust (within 1-9% for inserts, 4-38% for iteration), compiled to WASM via TinyGo
+- **C++** (Emscripten WASM) is fastest at iteration but ~2x slower at bulk inserts
+- **TypeScript** (V8) performs well for inserts (1.2-1.7x Rust) but slower at iteration (~2x)
+- **C#** is 25-60x slower across all benchmarks
+
 ## License
 
 SpacetimeDB is licensed under the BSL 1.1 license. This is not an open source or free software license, however, it converts to the AGPL v3.0 license with a linking exception after a few years.

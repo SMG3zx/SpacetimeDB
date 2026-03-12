@@ -1,0 +1,4 @@
+{
+  "description": "A Go chat console template demonstrating tables, unique indexes, lifecycle reducers, and message validation",
+  "server_lang": "go"
+}

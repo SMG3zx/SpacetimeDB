@@ -11,7 +11,7 @@ use spacetimedb_bench::{
 };
 use spacetimedb_lib::sats::AlgebraicType;
 use spacetimedb_primitives::ColId;
-use spacetimedb_testing::modules::{Csharp, Rust};
+use spacetimedb_testing::modules::{Cpp, Csharp, Go, Rust, TypeScript};
 
 #[cfg(target_env = "msvc")]
 #[global_allocator]
@@ -33,11 +33,17 @@ fn criterion_benchmark(c: &mut Criterion) {
     bench_suite::<spacetime_raw::SpacetimeRaw>(c, true).unwrap();
     bench_suite::<spacetime_module::SpacetimeModule<Rust>>(c, true).unwrap();
     bench_suite::<spacetime_module::SpacetimeModule<Csharp>>(c, true).unwrap();
+    bench_suite::<spacetime_module::SpacetimeModule<Go>>(c, true).unwrap();
+    bench_suite::<spacetime_module::SpacetimeModule<Cpp>>(c, true).unwrap();
+    bench_suite::<spacetime_module::SpacetimeModule<TypeScript>>(c, true).unwrap();
 
     bench_suite::<sqlite::SQLite>(c, false).unwrap();
     bench_suite::<spacetime_raw::SpacetimeRaw>(c, false).unwrap();
     bench_suite::<spacetime_module::SpacetimeModule<Rust>>(c, false).unwrap();
     bench_suite::<spacetime_module::SpacetimeModule<Csharp>>(c, false).unwrap();
+    bench_suite::<spacetime_module::SpacetimeModule<Go>>(c, false).unwrap();
+    bench_suite::<spacetime_module::SpacetimeModule<Cpp>>(c, false).unwrap();
+    bench_suite::<spacetime_module::SpacetimeModule<TypeScript>>(c, false).unwrap();
 }
 
 #[inline(never)]

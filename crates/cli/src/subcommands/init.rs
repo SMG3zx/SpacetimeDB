@@ -1307,7 +1307,7 @@ fn init_builtin(config: &TemplateConfig, project_path: &Path, is_server_only: bo
 
     let template_files = embedded::get_template_files();
 
-    if !is_server_only {
+    if !is_server_only && !template_def.client_source.is_empty() {
         println!(
             "Setting up client ({})...",
             config.client_lang.map(|l| l.as_str()).unwrap_or("none")
@@ -1336,7 +1336,15 @@ fn init_builtin(config: &TemplateConfig, project_path: &Path, is_server_only: bo
                 update_csproj_client_to_nuget(project_path)?;
             }
             Some(ClientLanguage::Go) => {
-                check_for_go();
+                // Rewrite go.mod with the correct SDK replace directive.
+                let go_mod_path = project_path.join("go.mod");
+                if go_mod_path.exists() {
+                    let (go_mod_content, sdk_found) = build_go_client_mod_content(project_path, &config.project_name);
+                    std::fs::write(&go_mod_path, &go_mod_content)?;
+                    if sdk_found {
+                        run_go_mod_tidy(project_path);
+                    }
+                }
             }
             None => {}
         }
@@ -1366,10 +1374,21 @@ fn init_builtin(config: &TemplateConfig, project_path: &Path, is_server_only: bo
             update_csproj_server_to_nuget(&server_dir)?;
         }
         Some(ServerLanguage::Cpp) => {
-            // No name update needed for C++ at the moment
+            // No name update needed for C++
         }
         Some(ServerLanguage::Go) => {
-            // No name update needed for Go at the moment
+            // Rewrite go.mod with substituted SDK paths and module name,
+            // then run `go mod tidy` to generate go.sum.
+            let go_mod_path = server_dir.join("go.mod");
+            if go_mod_path.exists() {
+                let (go_mod_content, sdk_found) = build_go_mod_content(&server_dir, &config.project_name);
+                std::fs::write(&go_mod_path, &go_mod_content)?;
+                if sdk_found {
+                    run_go_mod_tidy(&server_dir);
+                }
+            }
+            check_for_tinygo();
+            check_for_git();
         }
         None => {}
     }
@@ -1464,8 +1483,8 @@ fn init_empty_cpp_server(server_dir: &Path, _project_name: &str) -> anyhow::Resu
     init_cpp_project(server_dir)
 }
 
-fn init_empty_go_server(server_dir: &Path, _project_name: &str) -> anyhow::Result<()> {
-    init_go_project(server_dir)
+fn init_empty_go_server(server_dir: &Path, project_name: &str) -> anyhow::Result<()> {
+    init_go_project(server_dir, project_name)
 }
 
 fn print_next_steps(config: &TemplateConfig, _project_path: &Path) -> anyhow::Result<()> {
@@ -1515,9 +1534,7 @@ fn print_next_steps(config: &TemplateConfig, _project_path: &Path) -> anyhow::Re
                 if config.use_local { "--server local " } else { "" },
                 config.project_name
             );
-            println!("  spacetime generate --lang go --out-dir client/module_bindings --module-path spacetimedb");
-            println!("  cd client");
-            println!("  go mod tidy");
+            println!("  spacetime generate --lang go --out-dir module_bindings --module-path spacetimedb");
             println!("  go run .");
         }
         (TemplateType::Builtin, Some(ServerLanguage::Go), None) => {
@@ -1552,7 +1569,28 @@ fn print_next_steps(config: &TemplateConfig, _project_path: &Path) -> anyhow::Re
             }
             println!("  cargo run");
         }
+        (TemplateType::Empty, _, Some(ClientLanguage::Go)) => {
+            if config.server_lang.is_some() {
+                println!(
+                    "  spacetime publish --module-path spacetimedb {}{}",
+                    if config.use_local { "--server local " } else { "" },
+                    config.project_name
+                );
+                println!("  spacetime generate --lang go --out-dir module_bindings --module-path spacetimedb");
+            }
+            println!("  go run .");
+        }
         (TemplateType::Empty, Some(ServerLanguage::Go), None) => {
+            println!(
+                "  spacetime publish --module-path spacetimedb {}{}",
+                if config.use_local { "--server local " } else { "" },
+                config.project_name
+            );
+        }
+        (_, Some(ServerLanguage::Go), _) => {
+            println!("  cd spacetimedb");
+            println!("  go generate    # regenerate bindings from stdb.yaml (requires stdbgen)");
+            println!("  tinygo build -target wasm -o module.wasm ./");
             println!(
                 "  spacetime publish --module-path spacetimedb {}{}",
                 if config.use_local { "--server local " } else { "" },
@@ -1621,35 +1659,6 @@ fn check_for_dotnet() -> bool {
         .unwrap();
     }
     println!("{}", msg.yellow());
-    false
-}
-
-fn check_for_go() -> bool {
-    match std::env::consts::OS {
-        "linux" | "freebsd" | "netbsd" | "openbsd" | "solaris" | "macos" => {
-            if find_executable("go").is_some() {
-                return true;
-            }
-            println!(
-                "{}",
-                "Warning: You have created a Go project, but `go` was not found in PATH.\nInstall Go from https://go.dev/dl/\n"
-                    .yellow()
-            );
-        }
-        "windows" => {
-            if find_executable("go.exe").is_some() {
-                return true;
-            }
-            println!(
-                "{}",
-                "Warning: You have created a Go project, but `go.exe` was not found in PATH.\nInstall Go from https://go.dev/dl/\n"
-                    .yellow()
-            );
-        }
-        unsupported_os => {
-            println!("{}", format!("This OS may be unsupported: {unsupported_os}").yellow());
-        }
-    }
     false
 }
 
@@ -1819,15 +1828,18 @@ pub fn init_cpp_project(project_path: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-pub fn init_go_project(project_path: &Path) -> anyhow::Result<()> {
-    let export_files = vec![
-        (
-            include_str!("../../../../templates/basic-go/spacetimedb/go.mod"),
-            "go.mod",
-        ),
+pub fn init_go_project(project_path: &Path, project_name: &str) -> anyhow::Result<()> {
+    // Build the go.mod content, substituting SDK replace-directive paths and module name.
+    let (go_mod, sdk_paths_found) = build_go_mod_content(project_path, project_name);
+
+    let other_files: &[(&str, &str)] = &[
         (
             include_str!("../../../../templates/basic-go/spacetimedb/main.go"),
             "main.go",
+        ),
+        (
+            include_str!("../../../../templates/basic-go/spacetimedb/stdb.yaml"),
+            "stdb.yaml",
         ),
         (
             include_str!("../../../../templates/basic-go/spacetimedb/.gitignore"),
@@ -1835,16 +1847,218 @@ pub fn init_go_project(project_path: &Path) -> anyhow::Result<()> {
         ),
     ];
 
-    for data_file in export_files {
-        let path = project_path.join(data_file.1);
+    let go_mod_path = project_path.join("go.mod");
+    create_directory(go_mod_path.parent().unwrap())?;
+    std::fs::write(&go_mod_path, &go_mod)?;
+
+    for (content, name) in other_files {
+        let path = project_path.join(name);
         create_directory(path.parent().unwrap())?;
-        std::fs::write(path, data_file.0)?;
+        std::fs::write(path, content)?;
     }
 
-    check_for_go();
+    // If we found valid SDK paths, run `go mod tidy` to generate go.sum.
+    if sdk_paths_found {
+        run_go_mod_tidy(project_path);
+    }
+
+    check_for_tinygo();
     check_for_git();
 
     Ok(())
+}
+
+/// Runs `go mod tidy` in the given directory to generate go.sum.
+/// Prints a warning if `go` is not found or the command fails; does not abort init.
+fn run_go_mod_tidy(project_path: &Path) {
+    #[cfg(windows)]
+    let go_bin = "go.exe";
+    #[cfg(not(windows))]
+    let go_bin = "go";
+
+    if find_executable(go_bin).is_none() {
+        println!(
+            "{}",
+            "Warning: `go` not found in PATH; skipping `go mod tidy`.\n\
+             Run `go mod tidy` manually in the project directory to generate go.sum."
+                .yellow()
+        );
+        return;
+    }
+
+    let status = std::process::Command::new(go_bin)
+        .args(["mod", "tidy"])
+        .current_dir(project_path)
+        .status();
+
+    match status {
+        Ok(s) if s.success() => {
+            println!("Generated go.sum via `go mod tidy`.");
+        }
+        Ok(s) => {
+            println!(
+                "{}",
+                format!(
+                    "Warning: `go mod tidy` exited with status {s}.\n\
+                     Run it manually in the project directory to generate go.sum."
+                )
+                .yellow()
+            );
+        }
+        Err(e) => {
+            println!(
+                "{}",
+                format!(
+                    "Warning: failed to run `go mod tidy`: {e}.\n\
+                     Run it manually in the project directory to generate go.sum."
+                )
+                .yellow()
+            );
+        }
+    }
+}
+
+/// Sanitises a project name into a valid Go module name segment.
+/// Lowercases, replaces spaces/hyphens with underscores, strips non-alphanum chars.
+fn sanitize_go_module_name(name: &str) -> String {
+    name.to_lowercase()
+        .chars()
+        .map(|c| if c.is_alphanumeric() || c == '_' || c == '/' || c == '.' { c } else { '_' })
+        .collect()
+}
+
+/// Builds go.mod content for a new Go project, substituting placeholder SDK
+/// paths with real relative paths when the SpacetimeDB repository can be found
+/// by searching upward from `project_path`, and substituting the module name.
+/// Returns `(content, sdk_paths_found)`.
+fn build_go_mod_content(project_path: &Path, project_name: &str) -> (String, bool) {
+    let template = include_str!("../../../../templates/basic-go/spacetimedb/go.mod");
+
+    // Substitute the module name (template default is "spacetimedb_module").
+    let module_name = sanitize_go_module_name(project_name);
+    let template = template.replace("spacetimedb_module", &module_name);
+
+    // Resolve project_path to an absolute path for reliable comparison.
+    let abs_project = std::env::current_dir()
+        .ok()
+        .map(|cwd| cwd.join(project_path))
+        .unwrap_or_else(|| project_path.to_path_buf());
+
+    if let Some((go_path, server_path)) = find_spacetimedb_go_sdk_paths(&abs_project) {
+        let content = template
+            .replace("SPACETIMEDB_GO_PATH", &go_path)
+            .replace("SPACETIMEDB_GO_SERVER_PATH", &server_path);
+        return (content, true);
+    }
+
+    // SDK not found: convert the replace directives to comments and print instructions.
+    println!(
+        "{}",
+        "Warning: Could not locate the SpacetimeDB Go SDK on this machine.\n\
+         The generated go.mod has commented-out replace directives.\n\
+         To build your module, either:\n\
+           1. Set SPACETIMEDB_PATH to your SpacetimeDB repository root and re-run spacetime init, or\n\
+           2. Edit go.mod and uncomment the replace block, pointing paths to your local copies of:\n\
+                github.com/clockworklabs/spacetimedb-go      (sdks/go)\n\
+                github.com/clockworklabs/spacetimedb-go-server (crates/bindings-go)\n\
+           3. Wait for the Go SDK to be published to the Go module proxy.\n"
+            .yellow()
+    );
+
+    // Comment out the replace block so the file is syntactically valid.
+    let content = template
+        .replace(
+            "replace (\n\tgithub.com/clockworklabs/spacetimedb-go => SPACETIMEDB_GO_PATH\n\tgithub.com/clockworklabs/spacetimedb-go-server => SPACETIMEDB_GO_SERVER_PATH\n)",
+            "// replace (\n// \tgithub.com/clockworklabs/spacetimedb-go => /path/to/spacetimedb/sdks/go\n// \tgithub.com/clockworklabs/spacetimedb-go-server => /path/to/spacetimedb/crates/bindings-go\n// )",
+        );
+    (content, false)
+}
+
+/// Builds go.mod content for a Go client project, substituting the SDK replace
+/// directive with the real path when the SpacetimeDB repository can be found.
+/// Returns `(content, sdk_paths_found)`.
+fn build_go_client_mod_content(project_path: &Path, project_name: &str) -> (String, bool) {
+    let template = include_str!("../../../../templates/basic-go/go.mod");
+
+    let module_name = sanitize_go_module_name(project_name);
+    let template = template.replace("spacetimedb-client", &module_name);
+
+    let abs_project = std::env::current_dir()
+        .ok()
+        .map(|cwd| cwd.join(project_path))
+        .unwrap_or_else(|| project_path.to_path_buf());
+
+    if let Some((go_path, _)) = find_spacetimedb_go_sdk_paths(&abs_project) {
+        let content = template.replace("SPACETIMEDB_GO_PATH", &go_path);
+        return (content, true);
+    }
+
+    // SDK not found: comment out the replace directive.
+    let content = template.replace(
+        "replace github.com/clockworklabs/spacetimedb-go => SPACETIMEDB_GO_PATH",
+        "// replace github.com/clockworklabs/spacetimedb-go => /path/to/spacetimedb/sdks/go",
+    );
+    (content, false)
+}
+
+/// Searches upward from `start` to find the SpacetimeDB repository root, identified
+/// by the presence of both `sdks/go` and `crates/bindings-go` directories.
+/// Returns relative path strings (from `start`) to each SDK directory.
+fn find_spacetimedb_go_sdk_paths(start: &Path) -> Option<(String, String)> {
+    // Also honour an explicit SPACETIMEDB_PATH env var.
+    if let Ok(env_root) = std::env::var("SPACETIMEDB_PATH") {
+        let root = PathBuf::from(&env_root);
+        let go_sdk = root.join("sdks/go");
+        let server_sdk = root.join("crates/bindings-go");
+        if go_sdk.is_dir() && server_sdk.is_dir() {
+            let go_rel = make_relative_path(start, &go_sdk)?;
+            let server_rel = make_relative_path(start, &server_sdk)?;
+            return Some((go_rel, server_rel));
+        }
+    }
+
+    // Walk up the directory tree.
+    let mut dir = start.to_path_buf();
+    loop {
+        let go_sdk = dir.join("sdks/go");
+        let server_sdk = dir.join("crates/bindings-go");
+        if go_sdk.is_dir() && server_sdk.is_dir() {
+            let go_rel = make_relative_path(start, &go_sdk)?;
+            let server_rel = make_relative_path(start, &server_sdk)?;
+            return Some((go_rel, server_rel));
+        }
+        if !dir.pop() {
+            break;
+        }
+    }
+    None
+}
+
+/// Computes a relative path from `from` to `to` (both absolute).
+/// Returns `None` if they share no common prefix.
+fn make_relative_path(from: &Path, to: &Path) -> Option<String> {
+    let from_comps: Vec<_> = from.components().collect();
+    let to_comps: Vec<_> = to.components().collect();
+
+    let common = from_comps
+        .iter()
+        .zip(to_comps.iter())
+        .take_while(|(a, b)| a == b)
+        .count();
+
+    if common == 0 {
+        return None;
+    }
+
+    let mut result = PathBuf::new();
+    for _ in &from_comps[common..] {
+        result.push("..");
+    }
+    for comp in &to_comps[common..] {
+        result.push(comp);
+    }
+
+    Some(result.to_string_lossy().into_owned())
 }
 
 pub async fn exec_init_rust(args: &ArgMatches) -> anyhow::Result<()> {
@@ -1877,15 +2091,15 @@ fn create_directory(path: &Path) -> anyhow::Result<()> {
 
 pub fn parse_server_lang(lang: &Option<String>) -> anyhow::Result<Option<ServerLanguage>> {
     match lang.as_deref() {
-        Some(s) => Ok(ServerLanguage::from_str(s)?),
-        None => Ok(None),
+        Some(s) if !s.is_empty() => Ok(ServerLanguage::from_str(s)?),
+        _ => Ok(None),
     }
 }
 
 pub fn parse_client_lang(lang: &Option<String>) -> anyhow::Result<Option<ClientLanguage>> {
     match lang.as_deref() {
-        Some(s) => Ok(ClientLanguage::from_str(s)?),
-        None => Ok(None),
+        Some(s) if !s.is_empty() => Ok(ClientLanguage::from_str(s)?),
+        _ => Ok(None),
     }
 }
 
@@ -2081,6 +2295,25 @@ fn check_for_emscripten_and_cmake() -> bool {
         println!("{}", "Install CMake from: https://cmake.org/download/".yellow());
     }
 
+    false
+}
+
+fn check_for_tinygo() -> bool {
+    #[cfg(windows)]
+    let found = find_executable("tinygo.exe").is_some();
+    #[cfg(not(windows))]
+    let found = find_executable("tinygo").is_some();
+
+    if found {
+        return true;
+    }
+    println!(
+        "{}",
+        "Warning: You have created a Go project, but TinyGo was not found in PATH.\n\
+         Install TinyGo from: https://tinygo.org/getting-started/install/\n\
+         Compile your module with: tinygo build -target wasm -o module.wasm ./\n"
+            .yellow()
+    );
     false
 }
 

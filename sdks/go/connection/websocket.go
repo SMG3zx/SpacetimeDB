@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/SMG3zx/SpacetimeDB/sdks/go/internal/protocol"
+	"github.com/clockworklabs/spacetimedb-go/internal/protocol"
 	"github.com/gorilla/websocket"
 )
 

@@ -36,9 +36,9 @@ If you just want to checkout the final project and play around a bit, follow the
    git clone https://github.com/ClockworkLabs/SpacetimeDB.git
    cd SpacetimeDB/demo/Blackholio
    ```
-4. Publish the server logic. You can either publish the csharp server or the rust server.
+4. Publish the server logic. You can publish any of the server implementations (Rust, C#, or Go).
    ```bash
-   cd server-rust/
+   cd server-rust/   # or server-csharp/ or server-go/
    # Upload the module to SpacetimeDB
    bash ./publish.sh
    # Update the client bindings in case they are out of date
@@ -67,6 +67,7 @@ Blackholio/
 ├── client-unity/      # Unity client project
 ├── client-unreal/     # Unreal Engine client project
 ├── server-csharp/     # SpacetimeDB server module (C# implementation)
+├── server-go/         # SpacetimeDB server module (Go implementation)
 ├── server-rust/       # SpacetimeDB server module (Rust implementation)
 ├── DEVELOP.md         # Development guidelines
 └── README.md          # This file
@@ -76,7 +77,8 @@ Blackholio/
 
 ### **Requirements**
 - **Unity**: Version `2021.2` or newer.
-- **Rust**: Version `1.65.0` or later (for the SpacetimeDB server module).
+- **Rust**: Version `1.65.0` or later (for the Rust server module).
+- **Go**: Version `1.21` or later + **TinyGo** `0.33` or later (for the Go server module).
 - **SpacetimeDB CLI**: Installed via [SpacetimeDB installation guide](https://spacetimedb.com/docs/install).
 
 ---

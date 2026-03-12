@@ -1,0 +1,260 @@
+# SpacetimeDB module schema for stdbgen code generation.
+# Run: go run github.com/clockworklabs/spacetimedb-go-server/cmd/stdbgen
+# Or:  go generate
+
+package: main
+
+types:
+  - name: DbVector2
+    product:
+      - name: x
+        type: f32
+      - name: y
+        type: f32
+
+tables:
+  - name: Config
+    columns:
+      - name: id
+        type: i32
+      - name: world_size
+        type: i64
+    primary_key: [id]
+    access: public
+
+  - name: Entity
+    columns:
+      - name: entity_id
+        type: i32
+      - name: position
+        type: DbVector2
+      - name: mass
+        type: i32
+    primary_key: [entity_id]
+    access: public
+
+  - name: LoggedOutEntity
+    columns:
+      - name: entity_id
+        type: i32
+      - name: position
+        type: DbVector2
+      - name: mass
+        type: i32
+    primary_key: [entity_id]
+    access: private
+
+  - name: Circle
+    columns:
+      - name: entity_id
+        type: i32
+      - name: player_id
+        type: i32
+      - name: direction
+        type: DbVector2
+      - name: speed
+        type: f32
+      - name: last_split_time
+        type: u64
+    primary_key: [entity_id]
+    btree_indexes:
+      - name: circle_player_id_idx
+        columns: [player_id]
+    access: public
+
+  - name: LoggedOutCircle
+    columns:
+      - name: entity_id
+        type: i32
+      - name: player_id
+        type: i32
+      - name: direction
+        type: DbVector2
+      - name: speed
+        type: f32
+      - name: last_split_time
+        type: u64
+    primary_key: [entity_id]
+    btree_indexes:
+      - name: logged_out_circle_player_id_idx
+        columns: [player_id]
+    access: private
+
+  - name: Player
+    columns:
+      - name: identity
+        type: Identity
+      - name: player_id
+        type: i32
+      - name: name
+        type: String
+    primary_key: [identity]
+    unique_indexes:
+      - name: player_player_id_unique
+        columns: [player_id]
+    access: public
+
+  - name: LoggedOutPlayer
+    columns:
+      - name: identity
+        type: Identity
+      - name: player_id
+        type: i32
+      - name: name
+        type: String
+    primary_key: [identity]
+    unique_indexes:
+      - name: logged_out_player_player_id_unique
+        columns: [player_id]
+    access: private
+
+  - name: Food
+    columns:
+      - name: entity_id
+        type: i32
+    primary_key: [entity_id]
+    access: public
+
+  - name: MoveAllPlayersTimer
+    columns:
+      - name: scheduled_id
+        type: u64
+      - name: scheduled_at
+        type: ScheduleAt
+    primary_key: [scheduled_id]
+    access: private
+
+  - name: SpawnFoodTimer
+    columns:
+      - name: scheduled_id
+        type: u64
+      - name: scheduled_at
+        type: ScheduleAt
+    primary_key: [scheduled_id]
+    access: private
+
+  - name: CircleDecayTimer
+    columns:
+      - name: scheduled_id
+        type: u64
+      - name: scheduled_at
+        type: ScheduleAt
+    primary_key: [scheduled_id]
+    access: private
+
+  - name: CircleRecombineTimer
+    columns:
+      - name: scheduled_id
+        type: u64
+      - name: scheduled_at
+        type: ScheduleAt
+      - name: player_id
+        type: i32
+    primary_key: [scheduled_id]
+    access: private
+
+  - name: ConsumeEntityEvent
+    columns:
+      - name: consumed_entity_id
+        type: i32
+      - name: consumer_entity_id
+        type: i32
+    access: public
+    is_event: true
+
+  - name: ConsumeEntityTimer
+    columns:
+      - name: scheduled_id
+        type: u64
+      - name: scheduled_at
+        type: ScheduleAt
+      - name: consumed_entity_id
+        type: i32
+      - name: consumer_entity_id
+        type: i32
+    primary_key: [scheduled_id]
+    access: private
+
+scheduled:
+  - name: MoveAllPlayers
+    table: MoveAllPlayersTimer
+  - name: SpawnFood
+    table: SpawnFoodTimer
+  - name: CircleDecay
+    table: CircleDecayTimer
+  - name: CircleRecombine
+    table: CircleRecombineTimer
+  - name: ConsumeEntity
+    table: ConsumeEntityTimer
+
+reducers:
+  - name: Init
+    params: []
+    visibility: private
+
+  - name: Connect
+    params: []
+    visibility: private
+
+  - name: Disconnect
+    params: []
+    visibility: private
+
+  - name: EnterGame
+    params:
+      - name: name
+        type: String
+    visibility: public
+
+  - name: Respawn
+    params: []
+    visibility: public
+
+  - name: Suicide
+    params: []
+    visibility: public
+
+  - name: UpdatePlayerInput
+    params:
+      - name: direction
+        type: DbVector2
+    visibility: public
+
+  - name: MoveAllPlayers
+    params:
+      - name: timer
+        type: MoveAllPlayersTimer
+    visibility: private
+
+  - name: SpawnFood
+    params:
+      - name: timer
+        type: SpawnFoodTimer
+    visibility: private
+
+  - name: CircleDecay
+    params:
+      - name: timer
+        type: CircleDecayTimer
+    visibility: private
+
+  - name: CircleRecombine
+    params:
+      - name: timer
+        type: CircleRecombineTimer
+    visibility: private
+
+  - name: ConsumeEntity
+    params:
+      - name: timer
+        type: ConsumeEntityTimer
+    visibility: private
+
+  - name: PlayerSplit
+    params: []
+    visibility: public
+
+lifecycle:
+  on_init: Init
+  on_connect: Connect
+  on_disconnect: Disconnect

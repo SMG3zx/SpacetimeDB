@@ -10,7 +10,7 @@ use spacetimedb_lib::{bsatn::ToBsatn as _, ProductValue};
 use spacetimedb_schema::schema::TableSchema;
 use spacetimedb_schema::table_name::TableName;
 use spacetimedb_table::page_pool::PagePool;
-use spacetimedb_testing::modules::{Csharp, ModuleLanguage, Rust};
+use spacetimedb_testing::modules::{Csharp, Go, ModuleLanguage, Rust};
 use std::sync::Arc;
 use std::sync::OnceLock;
 
@@ -32,6 +32,7 @@ fn criterion_benchmark(c: &mut Criterion) {
 
     custom_benchmarks::<Rust>(c);
     custom_benchmarks::<Csharp>(c);
+    custom_benchmarks::<Go>(c);
 }
 
 fn custom_benchmarks<L: ModuleLanguage>(c: &mut Criterion) {

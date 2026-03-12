@@ -50,6 +50,7 @@
 //! }
 //! ```
 
+mod csharp;
 pub mod modules;
 
 use anyhow::{bail, Context, Result};
@@ -144,6 +145,19 @@ macro_rules! require_emscripten {
     () => {
         if !$crate::have_emscripten() {
             panic!("emcc (Emscripten) not found");
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! require_tinygo {
+    () => {
+        if !$crate::have_tinygo() {
+            #[allow(clippy::disallowed_macros)]
+            {
+                eprintln!("Skipping test: tinygo not found in PATH");
+            }
+            return;
         }
     };
 }
@@ -349,6 +363,12 @@ pub fn build_typescript_sdk() -> Result<()> {
 pub fn have_emscripten() -> bool {
     static HAVE_EMSCRIPTEN: OnceLock<bool> = OnceLock::new();
     *HAVE_EMSCRIPTEN.get_or_init(|| which("emcc").is_ok() || which("emcc.bat").is_ok())
+}
+
+/// Returns true if TinyGo is available on the system.
+pub fn have_tinygo() -> bool {
+    static HAVE_TINYGO: OnceLock<bool> = OnceLock::new();
+    *HAVE_TINYGO.get_or_init(|| which("tinygo").is_ok() || which("tinygo.exe").is_ok())
 }
 
 /// A smoketest instance that manages a SpacetimeDB server and module project.
@@ -822,6 +842,137 @@ impl Smoketest {
         self.database_identity = Some(identity.clone());
 
         Ok(identity)
+    }
+
+    /// Initializes, writes, and publishes a C# module from source.
+    ///
+    /// The module is initialized at `<test_project_dir>/<project_dir_name>/spacetimedb`.
+    /// On success this updates `self.database_identity`.
+    pub fn publish_csharp_module_source(
+        &mut self,
+        project_dir_name: &str,
+        module_name: &str,
+        module_source: &str,
+    ) -> Result<String> {
+        let module_root = self.project_dir.path().join(project_dir_name);
+        let module_root_str = module_root.to_str().context("Invalid C# project path")?;
+        self.spacetime(&[
+            "init",
+            "--non-interactive",
+            "--lang",
+            "csharp",
+            "--project-path",
+            module_root_str,
+            module_name,
+        ])?;
+
+        let module_path = module_root.join("spacetimedb");
+        fs::write(module_path.join("Lib.cs"), module_source).context("Failed to write C# module code")?;
+        csharp::prepare_csharp_module(&module_path)?;
+
+        let module_path_str = module_path.to_str().context("Invalid C# module path")?;
+        let publish_output = self.spacetime(&[
+            "publish",
+            "--server",
+            &self.server_url,
+            "--module-path",
+            module_path_str,
+            "--yes",
+            "--clear-database",
+            module_name,
+        ])?;
+        csharp::verify_csharp_module_restore(&module_path)?;
+
+        let re = Regex::new(r"identity: ([0-9a-fA-F]+)").unwrap();
+        let identity = re
+            .captures(&publish_output)
+            .and_then(|caps| caps.get(1))
+            .map(|m| m.as_str().to_string())
+            .context("Failed to parse database identity from publish output")?;
+        self.database_identity = Some(identity.clone());
+
+        Ok(identity)
+    }
+
+    /// Initializes, writes, and publishes a Go module from source.
+    ///
+    /// The module is initialized at `<test_project_dir>/<project_dir_name>/spacetimedb`.
+    /// Requires TinyGo to be installed and available on PATH.
+    /// On success this updates `self.database_identity`.
+    pub fn publish_go_module_source(
+        &mut self,
+        project_dir_name: &str,
+        module_name: &str,
+        module_source: &str,
+    ) -> Result<String> {
+        let workspace = workspace_root();
+        let module_root = self.project_dir.path().join(project_dir_name);
+        let module_root_str = module_root.to_str().context("Invalid Go project path")?;
+        self.spacetime(&[
+            "init",
+            "--non-interactive",
+            "--lang",
+            "go",
+            "--project-path",
+            module_root_str,
+            module_name,
+        ])?;
+
+        let module_path = module_root.join("spacetimedb");
+
+        // Write module source (overrides the template default).
+        fs::write(module_path.join("main.go"), module_source)
+            .context("Failed to write Go module source")?;
+
+        // Add local replace directives so TinyGo can resolve the SDK packages.
+        let go_mod_path = module_path.join("go.mod");
+        let go_mod = fs::read_to_string(&go_mod_path).context("Failed to read go.mod")?;
+        let server_sdk_path = workspace.join("crates/bindings-go");
+        let client_sdk_path = workspace.join("sdks/go");
+        let updated_go_mod = format!(
+            "{}\nreplace github.com/clockworklabs/spacetimedb-go-server => {}\nreplace github.com/clockworklabs/spacetimedb-go => {}\n",
+            go_mod,
+            server_sdk_path.display(),
+            client_sdk_path.display()
+        );
+        fs::write(&go_mod_path, updated_go_mod).context("Failed to write updated go.mod")?;
+
+        // Compile to WASM with TinyGo.
+        let wasm_path = module_path.join("module.wasm");
+        let output = Command::new("tinygo")
+            .args([
+                "build",
+                "-target",
+                "wasm-unknown",
+                "-gc",
+                "conservative",
+                "-buildmode",
+                "c-shared",
+                "-o",
+                wasm_path.to_str().unwrap(),
+                "./",
+            ])
+            .current_dir(&module_path)
+            .output()
+            .context("Failed to run tinygo build")?;
+        if !output.status.success() {
+            bail!(
+                "tinygo build failed:\nstdout: {}\nstderr: {}",
+                String::from_utf8_lossy(&output.stdout),
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+
+        // Post-process: add __preinit__10_go_init export aliasing _initialize.
+        // SpacetimeDB calls __preinit__* exports before __describe_module__,
+        // which ensures Go's init() functions run and populate module registries.
+        let wasm_bytes = fs::read(&wasm_path).context("Failed to read Go WASM module")?;
+        let patched = add_go_preinit_export(&wasm_bytes)
+            .ok_or_else(|| anyhow::anyhow!("Failed to patch Go WASM: _initialize export not found"))?;
+        fs::write(&wasm_path, patched).context("Failed to write patched Go WASM module")?;
+
+        self.use_precompiled_wasm_path(&wasm_path)?;
+        self.publish_module_named(module_name, true)
     }
 
     /// Writes new module code to the project.
@@ -1500,6 +1651,114 @@ impl SubscriptionHandle {
 /// Normalizes whitespace by trimming trailing whitespace from each line.
 fn normalize_whitespace(s: &str) -> String {
     s.lines().map(|line| line.trim_end()).collect::<Vec<_>>().join("\n")
+}
+
+/// Add a `__preinit__10_go_init` export to a Go WASM binary that aliases `_initialize`.
+/// This mirrors the post-processing done by `spacetime build` in `crates/cli/src/tasks/go.rs`.
+fn add_go_preinit_export(wasm: &[u8]) -> Option<Vec<u8>> {
+    if wasm.len() < 8 {
+        return None;
+    }
+    let preinit_name = "__preinit__10_go_init";
+    let func_idx = wasm_find_export_func_idx(wasm, "_initialize")?;
+
+    let name_bytes = preinit_name.as_bytes();
+    let mut new_export = Vec::new();
+    wasm_leb_encode(&mut new_export, name_bytes.len() as u64);
+    new_export.extend_from_slice(name_bytes);
+    new_export.push(0); // kind = func
+    wasm_leb_encode(&mut new_export, func_idx as u64);
+
+    wasm_inject_export(wasm, new_export)
+}
+
+fn wasm_find_export_func_idx(wasm: &[u8], name: &str) -> Option<u32> {
+    let mut pos = 8usize;
+    while pos < wasm.len() {
+        let sid = wasm[pos];
+        pos += 1;
+        let (sz, after) = wasm_leb_decode(wasm, pos)?;
+        pos = after;
+        let section_end = pos + sz as usize;
+        if sid == 7 {
+            let (count, mut epos) = wasm_leb_decode(wasm, pos)?;
+            for _ in 0..count {
+                let (nlen, after_nlen) = wasm_leb_decode(wasm, epos)?;
+                epos = after_nlen;
+                let export_name = std::str::from_utf8(&wasm[epos..epos + nlen as usize]).ok()?;
+                epos += nlen as usize;
+                let kind = wasm[epos];
+                epos += 1;
+                let (idx, after_idx) = wasm_leb_decode(wasm, epos)?;
+                epos = after_idx;
+                if export_name == name && kind == 0 {
+                    return Some(idx as u32);
+                }
+            }
+        }
+        pos = section_end;
+    }
+    None
+}
+
+fn wasm_inject_export(wasm: &[u8], new_export: Vec<u8>) -> Option<Vec<u8>> {
+    let mut pos = 8usize;
+    while pos < wasm.len() {
+        let sid = wasm[pos];
+        let sid_pos = pos;
+        pos += 1;
+        let (sz, after) = wasm_leb_decode(wasm, pos)?;
+        pos = after;
+        let section_end = pos + sz as usize;
+        if sid == 7 {
+            let (count, after_count) = wasm_leb_decode(wasm, pos)?;
+            let mut new_count_encoded = Vec::new();
+            wasm_leb_encode(&mut new_count_encoded, count + 1);
+            let rest = &wasm[after_count..section_end];
+            let mut new_content = new_count_encoded;
+            new_content.extend_from_slice(rest);
+            new_content.extend_from_slice(&new_export);
+            let mut new_size_encoded = Vec::new();
+            wasm_leb_encode(&mut new_size_encoded, new_content.len() as u64);
+            let mut result = Vec::with_capacity(wasm.len() + new_export.len() + 4);
+            result.extend_from_slice(&wasm[..sid_pos]);
+            result.push(7);
+            result.extend_from_slice(&new_size_encoded);
+            result.extend_from_slice(&new_content);
+            result.extend_from_slice(&wasm[section_end..]);
+            return Some(result);
+        }
+        pos = section_end;
+    }
+    None
+}
+
+fn wasm_leb_decode(data: &[u8], mut pos: usize) -> Option<(u64, usize)> {
+    let mut v = 0u64;
+    let mut s = 0u32;
+    loop {
+        let b = *data.get(pos)? as u64;
+        pos += 1;
+        v |= (b & 0x7f) << s;
+        s += 7;
+        if (b & 0x80) == 0 {
+            break;
+        }
+    }
+    Some((v, pos))
+}
+
+fn wasm_leb_encode(out: &mut Vec<u8>, mut n: u64) {
+    loop {
+        let b = (n & 0x7f) as u8;
+        n >>= 7;
+        if n != 0 {
+            out.push(b | 0x80);
+        } else {
+            out.push(b);
+            break;
+        }
+    }
 }
 
 #[cfg(test)]

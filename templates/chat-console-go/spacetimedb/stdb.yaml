@@ -1,0 +1,47 @@
+# SpacetimeDB module schema for stdbgen code generation.
+# Run: go run github.com/clockworklabs/spacetimedb-go-server/cmd/stdbgen
+# Or:  go generate
+
+package: main
+
+tables:
+  - name: User
+    columns:
+      - name: identity
+        type: Identity
+      - name: name
+        type: "Option<String>"
+      - name: online
+        type: Bool
+    primary_key: [identity]
+    unique_indexes:
+      - name: user_identity_unique
+        columns: [identity]
+    access: public
+
+  - name: Message
+    columns:
+      - name: sender
+        type: Identity
+      - name: sent
+        type: Timestamp
+      - name: text
+        type: String
+    access: public
+
+reducers:
+  - name: SetName
+    params:
+      - name: name
+        type: String
+    visibility: public
+
+  - name: SendMessage
+    params:
+      - name: text
+        type: String
+    visibility: public
+
+lifecycle:
+  on_connect: ClientConnected
+  on_disconnect: ClientDisconnected

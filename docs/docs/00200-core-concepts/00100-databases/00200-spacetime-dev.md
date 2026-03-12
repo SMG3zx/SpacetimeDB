@@ -69,9 +69,11 @@ Choose from several built-in templates:
 - `basic-cs` - Basic C# client and server stubs
 - `basic-rs` - Basic Rust client and server stubs
 - `basic-cpp` - Basic C++ server stubs
+- `basic-go` - Basic Go client and server stubs
 - `react-ts` - React web app with TypeScript server
 - `chat-console-rs` - Complete Rust chat implementation
 - `chat-console-cs` - Complete C# chat implementation
+- `chat-console-go` - Complete Go chat implementation
 - `chat-react-ts` - Complete TypeScript chat implementation
 
 You can also clone an existing project by entering a GitHub repository (`owner/repo`) or git URL.
@@ -84,6 +86,7 @@ Creates a server module only, without any client code. You'll choose your server
 - **Rust** - Server module in Rust
 - **C#** - Server module in C#
 - **C++** - Server module in C++
+- **Go** - Server module in Go
 
 The server code will be created in a `spacetimedb/` subdirectory within your project.
 

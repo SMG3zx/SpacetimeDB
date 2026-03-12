@@ -1,0 +1,23 @@
+# SpacetimeDB module schema for stdbgen code generation.
+# Run: go run github.com/clockworklabs/spacetimedb-go-server/cmd/stdbgen
+# Or:  go generate
+
+package: main
+
+tables:
+  - name: Person
+    columns:
+      - name: name
+        type: String
+    access: public
+
+reducers:
+  - name: Add
+    params:
+      - name: name
+        type: String
+    visibility: public
+
+  - name: SayHello
+    params: []
+    visibility: public
